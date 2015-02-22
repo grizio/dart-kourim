@@ -20,7 +20,7 @@ class query {
   final bool authentication;
   final dynamic criteria;
 
-  const query({this.name, this.remote:null, this.strategy, this.then:null, this.storage:null, this.type:'get', this.authentication:false, this.criteria:null});
+  const query({this.name, this.remote:null, this.strategy, this.then:null, this.storage:null, this.type:'get', this.authentication:false, this.criteria:null, this.limit:0});
 }
 
 class column {

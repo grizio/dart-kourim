@@ -317,4 +317,19 @@ class QueryHelper {
       throw new Exception('The query has no cache.');
     }
   }
+
+  static Map<String, Object> getBodyParameters(Query query, Map<String, Object> parameters) {
+    if (query.remote.isDefined()) {
+      var result = {};
+      var remote = query.remote.get();
+      for (var key in parameters.keys) {
+        if (!remote.contains(new RegExp(':' + key + '([^a-zA-Z0-9])')) && !remote.contains(new RegExp(':' + key + '\$'))) {
+          result[key] = parameters[key];
+        }
+      }
+      return result;
+    } else {
+      return parameters;
+    }
+  }
 }

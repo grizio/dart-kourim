@@ -3,6 +3,8 @@ part of kourim.query;
 typedef bool Constraint(Object object);
 
 class QueryBuilder {
+  // TODO: The sysetm use only JSON. See how we can use other formats.
+
   final Logger log = new Logger('kourim.query.QueryBuilder');
 
   Query _query;
@@ -38,11 +40,13 @@ class QueryBuilder {
           return QueryHelper.getQueryData(_query, _parameters);
         }
       } else {
-        // use existing logic to get data.
+        // Use existing logic to get data.
+        // Save temporary the result into session.
         var query = _query.copy();
+        query.storage = new Option(Constants.sessionStorage);
         var queryBuilder = new QueryBuilder(query, _em);
         var result = queryBuilder.execute();
-        queryBuilder.clean();
+        result.then((_) =>  queryBuilder.clean());
         return result;
       }
     } else if (_query.model.hasCache && _query.model.strategy.isDefined() && _query.model.strategy.get() == Constants.table) {
@@ -61,16 +65,23 @@ class QueryBuilder {
         return new Future.value(null); // Already prepared
       } else {
         if (_query.hasCache || _isThen) {
+          Future<HttpRequest> request;
           var remote = _query.remote.get();
           String uri = QueryHelper.getUri(_query, _parameters);
-          log.info("get data from uri '" + uri + "'");
-          return HttpRequest.getString(uri).then((json) {
-            var values = JSON.decode(json);
+          if (_query.type == Constants.get) {
+            request = HttpRequest.request(uri, method: Constants.get);
+          } else {
+            Map<String, Object> cleanedParameters = QueryHelper.getBodyParameters(_query, _parameters);
+            request = HttpRequest.request(uri, method: _query.type, sendData: JSON.encode(cleanedParameters));
+          }
+          log.info("get/fetch data from uri '" + uri + "'");
+          return request.then((result){
+            var values = JSON.decode(result.responseText);
             if (_query.then.isDefined()) {
               if (values is List) {
-                (values as List).forEach(_prepareNextOne);
+                return Future.wait((values as List).map(_prepareNextOne));
               } else {
-                _prepareNextOne(values);
+                return _prepareNextOne(values);
               }
             } else {
               if (_query.hasCache) {
@@ -84,7 +95,7 @@ class QueryBuilder {
         } else {
           return _em.createQuery(_query.model.name, Constants.findAll).then((QueryBuilder _) {
             _._isThen = true;
-            _._prepare();
+            return _._prepare();
           });
         }
       }
@@ -99,10 +110,11 @@ class QueryBuilder {
       qbNext._isThen = true;
       if (_query.strategy == Constants.rows) {
         qbNext.addParameters(values);
+        return qbNext._prepare();
       } else if (_query.strategy == Constants.column) {
         if (_query.model.keyColumn.isDefined()) {
           qbNext.addParameter(_query.model.keyColumn.get().name, values);
-          qbNext._prepare();
+          return qbNext._prepare();
         } else {
           throw new Exception('Queries with a then value and a strategy as Constant.column must have a key column.');
         }

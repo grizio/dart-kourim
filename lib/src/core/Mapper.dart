@@ -1,7 +1,25 @@
 part of kourim.core;
 
-class Mapper {
-  static dynamic toObject(Model model, dynamic values) {
+/// This interface describes classes providing some methods to transform an object into a map or a list of maps (convertible from and to json) in terms of a model.
+/// It provide also methods to perform the inverse operation.
+abstract class IMapper {
+  /// Transforms a map or a list of maps into an object or a list of objects according to the given [model].
+  dynamic toObject(Model model, dynamic values);
+
+  /// Transforms an object or a list of objects into a map or a list of maps according to the given [model].
+  dynamic toJson(Model model, dynamic values);
+
+  /// Transforms a single map into a single object according the given [model].
+  Object toObjectOne(Model model, Map<String, Object> values);
+
+  /// Transforms a single object into a single map according the given [model].
+  Map<String, Object> toJsonOne(Model model, Object object, [List<String> keepFields]);
+}
+
+/// Default implementation of the interface [IMapper] used by the system in production mode.
+class Mapper extends IMapper {
+  @override
+  dynamic toObject(Model model, dynamic values) {
     if (values is List) {
       return (values as List).map((_) => toObjectOne(model, _)).toList();
     } else {
@@ -9,7 +27,8 @@ class Mapper {
     }
   }
 
-  static dynamic toJson(Model model, dynamic values) {
+  @override
+  dynamic toJson(Model model, dynamic values) {
     if (values is List) {
       return (values as List).map((_) => toJsonOne(model, _));
     } else {
@@ -17,7 +36,8 @@ class Mapper {
     }
   }
 
-  static Object toObjectOne(Model model, Map<String, Object> values) {
+  @override
+  Object toObjectOne(Model model, Map<String, Object> values) {
     InstanceMirror instanceMirror = model.classMirror.newInstance(new Symbol(''), []);
     if (values is Map) {
       model.columns.values.forEach((column) {
@@ -37,7 +57,8 @@ class Mapper {
     return instanceMirror.reflectee;
   }
 
-  static Map<String, Object> toJsonOne(Model model, Object object, [List<String> keepFields]) {
+  @override
+  Map<String, Object> toJsonOne(Model model, Object object, [List<String> keepFields]) {
     var result = <String, Object>{};
     InstanceMirror instanceMirror = reflect(object);
     model.columns.values.forEach((column){

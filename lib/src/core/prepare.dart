@@ -1,8 +1,9 @@
 part of kourim.core;
 
+/// Prepares the Kourim system to be usable by the developer.
 Future prepare() {
-  return getAppDatabase().open().then((_){
-    return getDatabase(root.InternalConstants.database).open().then((_){
+  return factory.database.open().then((_){
+    return factory.internalDatabase.open().then((_){
       var mirrors = currentMirrorSystem();
       var libraryMirrors = mirrors.libraries.values;
       libraryMirrors.forEach((_) {
@@ -16,6 +17,7 @@ Future prepare() {
   });
 }
 
+/// Extracts metadata from given class mirror and save the result into [ModelDescription] if needed.
 void processClass(ClassMirror classMirror) {
   if (isModel(classMirror)) {
     Model model = new Model();
@@ -28,10 +30,11 @@ void processClass(ClassMirror classMirror) {
         processColumn(declaration, model);
       }
     });
-    getModelDescription().add(model);
+    factory.modelDescription.add(model);
   }
 }
 
+/// From an [metadata] on a classMirror, extracts data to populate the given [model].
 void processModelMetadata(InstanceMirror metadata, Model model) {
   if (metadata.hasReflectee) {
     if (metadata.reflectee is annotation.model) {
@@ -46,7 +49,7 @@ void processModelMetadata(InstanceMirror metadata, Model model) {
       query.name = queryReflectee.name;
       query.remote = new Option(queryReflectee.remote);
       query.then = new Option(queryReflectee.then);
-      query.type = stringUtilities.nvl(queryReflectee.type, root.Constants.get);
+      query.type = stringUtilities.nvl(queryReflectee.type, constants.get);
       query.authentication = booleanUtilities.nvl(queryReflectee.authentication, false);
       query.criteria = new Option(queryReflectee.criteria);
       query.strategy = queryReflectee.strategy;
@@ -57,6 +60,7 @@ void processModelMetadata(InstanceMirror metadata, Model model) {
   }
 }
 
+/// Processes a field which was defined as a column to extract its description from annotations.
 void processColumn(VariableMirror columnMirror, Model model) {
   Column column = new Column();
   // We need to know the column name as soon as possible
@@ -82,6 +86,7 @@ void processColumn(VariableMirror columnMirror, Model model) {
   model.addColumn(column);
 }
 
+/// Is the [classMirror] a model?
 bool isModel(ClassMirror classMirror) {
   for (var metadata in classMirror.metadata) {
     if (metadata.hasReflectee && metadata.reflectee is annotation.model) {
@@ -91,6 +96,7 @@ bool isModel(ClassMirror classMirror) {
   return false;
 }
 
+/// Is the [variableMirror] a column?
 bool isColumn(VariableMirror variableMirror) {
   for (var metadata in variableMirror.metadata) {
     if (metadata.hasReflectee && metadata.reflectee is annotation.column) {
@@ -100,6 +106,7 @@ bool isColumn(VariableMirror variableMirror) {
   return false;
 }
 
+/// Extracts the column name from the [variableMirror] in terms of [column] annotation or variable name.
 String getColumnName(VariableMirror variableMirror) {
   for (var metadata in variableMirror.metadata) {
     if (metadata.hasReflectee && metadata.reflectee is annotation.column) {

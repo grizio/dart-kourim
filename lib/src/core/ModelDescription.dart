@@ -1,17 +1,30 @@
 part of kourim.core;
 
-class ModelDescription {
+/// This interface describes classes which can register and provide a list of model descriptions.
+abstract class IModelDescription {
+  /// Finds a [Model] in terms of its [name].
+  Option<Model> findByName(String name);
+
+  /// Adds a model.
+  void add(Model model);
+}
+
+/// Default implementation of the interface [IModelDescription] used by the system in production mode.
+class ModelDescription extends IModelDescription {
   Map<String, Model> _models = {};
 
+  @override
   Option<Model> findByName(String name) {
     return new Option(_models[name]);
   }
 
+  @override
   void add(Model model) {
     _models[model.name] = model;
   }
 }
 
+/// Describes a model according to [kourim.annotation] system.
 class Model {
   String name;
   Map<String, Column> columns = {};
@@ -21,7 +34,7 @@ class Model {
   Option<int> limit;
   ClassMirror classMirror;
 
-  bool get hasCache => storage.isDefined();
+  bool get hasCache => storage.isDefined;
   bool get hasNotCache => !hasCache;
 
   Option<Column> get keyColumn {
@@ -68,6 +81,7 @@ class Model {
   }
 }
 
+/// Describes a column according to [kourim.annotation] system.
 class Column {
   Model model;
   String name;
@@ -76,6 +90,7 @@ class Column {
   VariableMirror variableMirror;
 }
 
+/// Describes a query according to [kourim.annotation] system.
 class Query {
   Model model;
   String name;
@@ -90,7 +105,7 @@ class Query {
   String strategy;
 
   String get fullName => model.name + '.' + name;
-  bool get hasCache => storage.isDefined() && type == root.Constants.get;
+  bool get hasCache => storage.isDefined && type == constants.get;
   bool get hasNotCache => !hasCache;
 
   Query copy() {

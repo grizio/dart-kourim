@@ -1,12 +1,8 @@
-part of kourim.core;
+part of kourim.core.interface;
 
 /// This interface describes classes which provide a mean to validate a system using kourim.
 /// Validating initially the system could avoid further errors which could not be seen immediately.
-class IModelValidation {
-
-}
-
-/// This
-class ModelValidation extends IModelValidation {
-  // TODO: how to validate the provided model?
+abstract class IModelValidation {
+  /// Validates if a model is conform with the specification.
+  bool validate(IModelDescription modelDescription);
 }

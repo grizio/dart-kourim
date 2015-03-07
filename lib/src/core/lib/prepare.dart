@@ -1,4 +1,4 @@
-part of kourim.core;
+part of kourim.core.lib;
 
 /// Prepares the Kourim system to be usable by the developer.
 Future prepare() {
@@ -51,7 +51,6 @@ void processModelMetadata(InstanceMirror metadata, Model model) {
       query.then = new Option(queryReflectee.then);
       query.type = stringUtilities.nvl(queryReflectee.type, constants.get);
       query.authentication = booleanUtilities.nvl(queryReflectee.authentication, false);
-      query.criteria = new Option(queryReflectee.criteria);
       query.strategy = queryReflectee.strategy;
       query.limit = new Option(queryReflectee.limit);
       query.storage = new Option(queryReflectee.storage);

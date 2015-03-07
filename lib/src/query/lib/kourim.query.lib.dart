@@ -1,4 +1,4 @@
-library kourim.query;
+library kourim.query.lib;
 
 import 'dart:async';
 import 'dart:convert';
@@ -10,10 +10,11 @@ import 'package:logging/logging.dart';
 import 'package:kourim/config.dart' as config;
 import 'package:kourim/constants.dart' as constants;
 
-import '../factory.dart' as factory;
-import '../internalConstants.dart' as internalConstants;
-import '../core/kourim.core.lib.dart';
-import '../storage/kourim.storage.lib.dart';
+import '../../factory.dart' as factory;
+import '../../internalConstants.dart' as internalConstants;
+import '../../core/lib/kourim.core.lib.dart';
+import '../../storage/interface/kourim.storage.interface.dart' as storage;
+import '../interface/kourim.query.interface.dart';
 
 part 'EntityManager.dart';
 part 'QueryBuilder.dart';

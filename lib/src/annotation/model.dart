@@ -84,18 +84,9 @@ class query {
   /// If true, then the system will set the HTTP authentication to the remote request.
   final bool authentication;
 
-  /// **Not implemented yet**
-  ///
-  /// This attribute defines the list of parameters used by the system and how to use them.
-  /// This attribute is used only when it is the model which is cached as [kourim.constants.table].
-  /// This attribute is a JSON string formatting a map of keys/values.
-  ///
-  /// It is not implemented yet, but the objective will be to provide some simple methods as SQL `LIKE`.
-  final dynamic criteria;
-
   /// Creates the annotation.
   /// See class variables for more information fo each parameter.
-  const query({this.name, this.remote:null, this.strategy, this.then:null, this.storage:null, this.type:'get', this.authentication:false, this.criteria:null, this.limit:0});
+  const query({this.name, this.remote:null, this.strategy, this.then:null, this.storage:null, this.type:'get', this.authentication:false, this.limit:0});
 }
 
 /// Describes a column in the model.

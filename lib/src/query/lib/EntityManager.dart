@@ -1,15 +1,12 @@
-part of kourim.query;
-
-/// This interface describes classes which provide methods to manage entities.
-abstract class IEntityManager {
-  /// Creates a new [QueryBuilder] parametrized in terms of given [modelName] and [queryName].
-  Future<IQueryBuilder> createQuery(String modelName, String queryName);
-}
+part of kourim.query.lib;
 
 /// This class is the default implementation of [IEntityManager] and is used in production mode.
 class EntityManager extends IEntityManager {
+  static final Logger log = new Logger('kourim.query.EntityManager');
+
   @override
   Future<IQueryBuilder> createQuery(String modelName, String queryName) {
+    log.info('createQuery(' + modelName + ',' + queryName + ')');
     var modelDescription = factory.modelDescription;
     Option<Model> model = modelDescription.findByName(modelName);
     if (model.isDefined) {
@@ -18,9 +15,11 @@ class EntityManager extends IEntityManager {
         var queryBuilder = new QueryBuilder(query.get(), this);
         return new Future.value(queryBuilder);
       } else {
+        log.severe('Query ' + modelName + '.' + queryName + ' is not defined');
         throw new Exception('Query ' + modelName + '.' + queryName + ' is not defined');
       }
     } else {
+      log.severe('Model ' + modelName + ' is not defined');
       throw new Exception('Model ' + modelName + ' is not defined');
     }
   }

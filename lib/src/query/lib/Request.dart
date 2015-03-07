@@ -1,27 +1,10 @@
-part of kourim.query;
-
-/// Defines classes which can make HTTP request with some configurations and return its result.
-abstract class IRequest {
-  /// URI of the request.
-  /// This URI cannot be a pattern url because it will be used as is.
-  String uri;
-
-  /// Method of the request, should be a valid HTTP method.
-  String method;
-
-  /// Parameters to send to the request.
-  /// These parameters is only the body parameter.
-  Map<String, Object> parameters;
-
-  /// Sends the HTTP request and returns its result.
-  Future<dynamic> send();
-}
+part of kourim.query.lib;
 
 /// This class is the default implementation of [IRequest] and is used in production mode.
 class Request extends IRequest {
-  Option<String> _uri;
-  Option<String> _method;
-  Option<Map<String, Object>> _parameters;
+  Option<String> _uri = None;
+  Option<String> _method = None;
+  Option<Map<String, Object>> _parameters = None;
 
   @override
   set uri(String uri) => _uri = Some(uri);
@@ -46,7 +29,7 @@ class Request extends IRequest {
     if (_uri == None || _method == None) {
       throw 'You must provide a valid URI and a valid method before sending a HTTP Request.';
     }
-    var completer = new Completer<HttpRequest>();
+    var completer = new Completer<dynamic>();
 
     var xhr = new HttpRequest();
     xhr.open(method, uri, async: true);
@@ -54,7 +37,7 @@ class Request extends IRequest {
     xhr.onLoad.listen((e) {
       if ((xhr.status >= 200 && xhr.status < 300) ||
           xhr.status == 0 || xhr.status == 304) {
-        completer.complete(xhr);
+        completer.complete(JSON.decode(xhr.responseText));
       } else {
         completer.completeError(e);
       }

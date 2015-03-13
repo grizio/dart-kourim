@@ -119,24 +119,6 @@ IModelStorage get localStorage {
 }
 
 
-IQueryHelper _queryHelper;
-
-/// Changes the default `QueryHelper`.
-/// This method should be used for testing only.
-set queryHelper(IQueryHelper queryHelper) {
-  _queryHelper = queryHelper;
-}
-
-/// Gets the `QueryHelper`
-IQueryHelper get queryHelper {
-  if (_queryHelper == null) {
-    // Default class
-    _queryHelper = new QueryHelper();
-  }
-  return _queryHelper;
-}
-
-
 IEntityManager _entityManager;
 /// Changes the default `EntityManager`
 /// This method should be used for testing only.
@@ -176,4 +158,20 @@ IRequestCreation get requestCreation {
 /// Creates a new request.
 IRequest createRequest() {
   return requestCreation();
+}
+
+IModelValidation _modelValidation;
+
+/// Gets the model validation.
+IModelValidation get modelValidation {
+  if (_modelValidation == null) {
+    _modelValidation = new ModelValidation();
+  }
+  return _modelValidation;
+}
+
+/// Sets the model validation
+/// This function should be called for tests only.
+set modelValidation(IModelValidation modelValidation) {
+  _modelValidation = modelValidation;
 }

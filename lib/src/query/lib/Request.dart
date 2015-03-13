@@ -7,6 +7,9 @@ class Request extends IRequest {
   Option<Map<String, Object>> _parameters = None;
 
   @override
+  bool parseResult = true;
+
+  @override
   set uri(String uri) => _uri = Some(uri);
 
   @override
@@ -37,14 +40,18 @@ class Request extends IRequest {
     xhr.onLoad.listen((e) {
       if ((xhr.status >= 200 && xhr.status < 300) ||
           xhr.status == 0 || xhr.status == 304) {
-        completer.complete(JSON.decode(xhr.responseText));
+        if (parseResult) {
+          completer.complete(JSON.decode(xhr.responseText));
+        } else {
+          completer.complete();
+        }
       } else {
         completer.completeError(e);
       }
     });
 
     if (_parameters.isDefined) {
-      xhr.send(parameters);
+      xhr.send(JSON.encode(parameters));
     } else {
       xhr.send();
     }

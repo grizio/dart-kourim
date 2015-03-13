@@ -8,6 +8,8 @@ abstract class IQueryBuilder {
   /// Adds a list of parameters to the query.
   void addParameters(Map<String, Object> values);
 
+  void addInputEntity(Object object);
+
   /// Gets the constraint that all results in the query must conform to be returned to the user.
   Option<Constraint> get constraint;
 

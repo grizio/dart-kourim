@@ -2,6 +2,7 @@ part of kourim.core.lib;
 
 /// Prepares the Kourim system to be usable by the developer.
 Future prepare() {
+  var modelValidation = factory.modelValidation;
   return factory.database.open().then((_){
     return factory.internalDatabase.open().then((_){
       var mirrors = currentMirrorSystem();
@@ -13,6 +14,9 @@ Future prepare() {
           }
         });
       });
+      if (!modelValidation.validate(factory.modelDescription)) {
+        throw new KourimException(modelValidation.errors);
+      }
     });
   });
 }

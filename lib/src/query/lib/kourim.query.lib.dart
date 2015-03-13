@@ -11,12 +11,10 @@ import 'package:kourim/config.dart' as config;
 import 'package:kourim/constants.dart' as constants;
 
 import '../../factory.dart' as factory;
-import '../../internalConstants.dart' as internalConstants;
 import '../../core/lib/kourim.core.lib.dart';
 import '../../storage/interface/kourim.storage.interface.dart' as storage;
 import '../interface/kourim.query.interface.dart';
 
 part 'EntityManager.dart';
 part 'QueryBuilder.dart';
-part 'QueryHelper.dart';
 part 'Request.dart';

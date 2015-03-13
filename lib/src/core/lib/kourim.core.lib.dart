@@ -14,6 +14,7 @@ import '../../factory.dart' as factory;
 import '../../annotation/kourim.annotation.lib.dart' as annotation;
 import '../interface/kourim.core.interface.dart';
 
+part 'KourimException.dart';
 part 'Mapper.dart';
 part 'ModelDescription.dart';
 part 'ModelValidation.dart';

@@ -110,7 +110,8 @@ class key {
 }
 
 /// Indicates that a column will be unique in the model.
-/// It could optimize queries on local storaqes.
+/// It could optimize queries on local storages.
+/// Currently not used.
 class unique {
   /// Creates the annotation.
   /// See class variables for more information fo each parameter.

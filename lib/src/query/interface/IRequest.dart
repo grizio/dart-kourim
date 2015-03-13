@@ -13,6 +13,10 @@ abstract class IRequest {
   /// These parameters is only the body parameter.
   Map<String, Object> parameters;
 
+  /// If true, the result will be parsed into JSON before returning to caller.
+  /// Otherwise, the request will not return a result.
+  bool parseResult;
+
   /// Sends the HTTP request and returns its result.
   Future<dynamic> send();
 }

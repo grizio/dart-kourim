@@ -5,4 +5,7 @@ part of kourim.core.interface;
 abstract class IModelValidation {
   /// Validates if a model is conform with the specification.
   bool validate(IModelDescription modelDescription);
+
+  /// Returns the list of errors due to validation.
+  Iterable<String> get errors;
 }

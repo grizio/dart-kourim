@@ -7,6 +7,9 @@ abstract class IModelDescription {
 
   /// Adds a model.
   void add(IModel model);
+
+  /// Returns the list of all names of registered models.
+  Iterable<String> get modelNames;
 }
 
 /// Describes a model according to [kourim.annotation] system.
@@ -25,6 +28,12 @@ abstract class IModel {
 
   /// The associated class mirror
   ClassMirror classMirror;
+
+  /// Return the list of all query names.
+  Iterable<String> get queryNames;
+
+  /// List of column names for the model.
+  Iterable<String> get columnNames;
 
   /// Indicates if the model has a cache.
   bool get hasCache;
@@ -92,7 +101,7 @@ abstract class IQuery {
   Option<IQuery> get thenQuery;
 
   /// The type of the remote call (HTTP method).
-  String type;
+  Option<String> type;
 
   /// Indicates if the remote request needs an authentication to fetch data.
   bool authentication;

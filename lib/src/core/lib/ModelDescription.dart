@@ -2,16 +2,21 @@ part of kourim.core.lib;
 
 /// Default implementation of the interface [IModelDescription] used by the system in production mode.
 class ModelDescription implements IModelDescription {
-  Map<String, IModel> _models = {};
+  Map<String, IModel> models = {};
 
   @override
   Option<IModel> findByName(String name) {
-    return new Option(_models[name]);
+    return new Option(models[name]);
   }
 
   @override
   void add(IModel model) {
-    _models[model.name] = model;
+    models[model.name] = model;
+  }
+
+  @override
+  Iterable<String> get modelNames {
+    return models.keys;
   }
 }
 
@@ -29,6 +34,16 @@ class Model implements IModel {
 
   @override
   bool get hasNotCache => !hasCache;
+
+  @override
+  Iterable<String> get queryNames {
+    return queries.keys;
+  }
+
+  @override
+  Iterable<String> get columnNames {
+    return columns.keys;
+  }
 
   @override
   IColumn get keyColumn {

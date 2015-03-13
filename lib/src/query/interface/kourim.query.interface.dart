@@ -9,7 +9,6 @@ import '../../storage/interface/kourim.storage.interface.dart' as storage;
 
 part 'IEntityManager.dart';
 part 'IQueryBuilder.dart';
-part 'IQueryHelper.dart';
 part 'IRequest.dart';
 
 /// Defines a constraint of a query to apply for each model.

@@ -26,6 +26,7 @@ void processClass(ClassMirror classMirror) {
   if (isModel(classMirror)) {
     Model model = new Model();
     model.classMirror = classMirror;
+    model.isNestedOnly = false;
     classMirror.metadata.forEach((metadata){
       processModelMetadata(metadata, model);
     });
@@ -59,6 +60,8 @@ void processModelMetadata(InstanceMirror metadata, Model model) {
       query.limit = new Option(queryReflectee.limit);
       query.storage = new Option(queryReflectee.storage);
       model.addQuery(query);
+    } else if (metadata.reflectee is annotation.nestedOnly) {
+      model.isNestedOnly = true;
     }
   }
 }
@@ -71,16 +74,12 @@ void processColumn(VariableMirror columnMirror, Model model) {
   column.key = false;
   column.unique = false;
   column.variableMirror = columnMirror;
+  column.isModelDescription = false;
+  column.type = getColumnType(columnMirror);
   columnMirror.metadata.forEach((metadata){
     if (metadata.hasReflectee) {
       if (metadata.reflectee is annotation.column) {
-        var columnReflectee = metadata.reflectee as annotation.column;
-        // name: already done with getColumnName
-        if (columnReflectee.type == null) {
-          column.type = columnMirror.type.reflectedType.toString();
-        } else {
-          column.type = columnReflectee.type;
-        }
+        // All checks already done.
       } else if (metadata.reflectee is annotation.key) {
         column.key = true;
       } else if (metadata.reflectee is annotation.unique) {
@@ -89,6 +88,8 @@ void processColumn(VariableMirror columnMirror, Model model) {
         var onQueryReflectee = metadata.reflectee as annotation.onQuery;
         // Could we throw an exception or log an error if the query does not exist ?
         model.getQuery(onQueryReflectee.queryName).forEach((Query query) => query.fields.add(column.name));
+      } else if (metadata.reflectee is annotation.nested) {
+        column.isModelDescription = true;
       }
     }
   });
@@ -126,4 +127,29 @@ String getColumnName(VariableMirror variableMirror) {
     }
   }
   return MirrorSystem.getName(variableMirror.simpleName);
+}
+
+String getColumnType(VariableMirror variableMirror) {
+  String type;
+  for (var metadata in variableMirror.metadata) {
+    if (metadata.hasReflectee) {
+      if (metadata.reflectee is annotation.column) {
+        var columnMetadata = metadata.reflectee as annotation.column;
+        if (columnMetadata.type != null) {
+          type = columnMetadata.type;
+        }
+      }
+      else if (metadata.reflectee is annotation.nested) {
+        var columnMetadata = metadata.reflectee as annotation.nested;
+        if (columnMetadata.target != null) {
+          return columnMetadata.target;
+        }
+      }
+    }
+  }
+  if (type != null) {
+    return type;
+  } else {
+    return variableMirror.type.reflectedType.toString();
+  }
 }

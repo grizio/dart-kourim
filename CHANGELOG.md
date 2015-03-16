@@ -8,4 +8,5 @@
 
 ## 0.1.1
 
-* Types of columns and converters
+* Types of column and converters
+* Nested models (infinite nested)

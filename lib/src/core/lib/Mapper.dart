@@ -27,7 +27,13 @@ class Mapper extends IMapper {
     model.columnNames.forEach((columnName) {
       var column = model.getColumn(columnName).get();
       if (values.containsKey(column.name)) {
-        var value = converterStore[column.type].jsonToType(values[column.name]);
+        var value;
+        if (column.isModelDescription) {
+          var nestedModel = factory.modelDescription.findByName(column.type).get();
+          value = toObject(nestedModel, values[column.name]);
+        } else {
+          value = converterStore[column.type].jsonToType(values[column.name]);
+        }
         instanceMirror.setField(column.variableMirror.simpleName, value);
       }
     });
@@ -44,7 +50,13 @@ class Mapper extends IMapper {
       if (keepFields == null || keepFields.length == 0 || keepFields.contains(column.name)) {
         var valueMirror = instanceMirror.getField(column.variableMirror.simpleName);
         if (valueMirror.hasReflectee && valueMirror.reflectee != null) {
-          var value = converterStore[column.type].typeToJson(valueMirror.reflectee);
+          var value;
+          if (column.isModelDescription) {
+            var nestedModel = factory.modelDescription.findByName(column.type).get();
+            value = toJson(nestedModel, valueMirror.reflectee);
+          } else {
+            var value = converterStore[column.type].typeToJson(valueMirror.reflectee);
+          }
           result[column.name] = value;
         }
       }

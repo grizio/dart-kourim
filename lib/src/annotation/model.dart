@@ -133,3 +133,23 @@ class onQuery {
   /// See class variables for more information fo each parameter.
   const onQuery(this.queryName);
 }
+
+/// Indicates that the given column is a nested object.
+/// The system will parse the the value for this column in terms of target model description.
+class nested {
+  /// The target model name (not the class name if different).
+  final String target;
+
+  /// Creates the annotation.
+  /// See class variables for more information fo each parameter.
+  const nested({this.target});
+}
+
+/// When a class is annotated with [nestedOnly], it means the class defines a complex type representable by a model,
+/// But the system cannot query on this model (so queries and cache are forbidden).
+/// This annotation is required when tge model does not have a key.
+class nestedOnly {
+  /// Creates the annotation.
+  /// See class variables for more information fo each parameter.
+  const nestedOnly();
+}

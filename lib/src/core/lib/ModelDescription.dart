@@ -28,6 +28,7 @@ class Model implements IModel {
   Option<String> strategy;
   Option<int> limit;
   ClassMirror classMirror;
+  bool isNestedOnly;
 
   @override
   bool get hasCache => storage.isDefined;
@@ -106,6 +107,10 @@ class Column implements IColumn {
   bool unique;
   VariableMirror variableMirror;
   String type;
+  bool isModelDescription;
+
+  @override
+  String get fullName => model.name + '.' + name;
 
   @override
   IColumn copy() {
@@ -115,6 +120,8 @@ class Column implements IColumn {
     column.key = key;
     column.unique = unique;
     column.variableMirror = variableMirror;
+    column.type = type;
+    column.isModelDescription = isModelDescription;
     return column;
   }
 }

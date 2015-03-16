@@ -8,8 +8,8 @@ class ModelValidation implements IModelValidation {
     _errors = [];
     for (var modelName in modelDescription.modelNames) {
       var model = modelDescription.findByName(modelName).get();
-      if (hasNotOneKey(model)) {
-        _errors.add('The model "' + modelName + '" must have one and only one key.');
+      if (hasNotOneKey(model) && !model.isNestedOnly) {
+          _errors.add('The model "' + modelName + '" must have one and only one key or be @nestedOnly.');
       }
       if (hasModelCacheAndNotFindAll(model)) {
         _errors.add('The model "' + modelName + '" has a model cache but has not a "findall" query.');
@@ -20,6 +20,13 @@ class ModelValidation implements IModelValidation {
       if (model.storage.isDefined && isUnknownStorage(model.storage.get())) {
         _errors.add('The model "' + model.name + '" has an unknown storage "' + model.storage.get() + '"');
       }
+      if (model.isNestedOnly && model.hasCache) {
+        _errors.add('The model "' + model.name + '" is @nestedOnly but also have a cache.');
+      }
+      if (model.isNestedOnly && model.queryNames.isNotEmpty) {
+        _errors.add('The model "' + model.name + '" is @nestedOnly but also have queries.');
+      }
+
       for (var queryName in model.queryNames) {
         var query = model.getQuery(queryName).get();
         if (isFinalAndWrongStrategy(query)) {
@@ -68,6 +75,13 @@ class ModelValidation implements IModelValidation {
           _errors.add('The query "' + query.fullName + '" has "none" strategy but also a query cache.');
         }
       }
+
+      for (var columnName in model.columnNames) {
+        var column = model.getColumn(columnName).get();
+        if (nestedModelNotFound(modelDescription, column)) {
+          _errors.add('The column "' + column.fullName + '" has a nested column referencing an unknown model.');
+        }
+      }
     }
     return _errors.isEmpty;
   }
@@ -75,23 +89,23 @@ class ModelValidation implements IModelValidation {
   @override
   Iterable<String> get errors => _errors;
 
-  bool isFinalAndWrongStrategy(Query query) {
+  bool isFinalAndWrongStrategy(IQuery query) {
     return query.then.isNotDefined && query.strategy == constants.column;
   }
 
-  bool hasNoRemoteAndNoModelCache(Query query) {
+  bool hasNoRemoteAndNoModelCache(IQuery query) {
     return query.remote.isNotDefined && query.model.hasNotCache;
   }
 
-  bool hasNextAndWrongStrategy(Query query) {
+  bool hasNextAndWrongStrategy(IQuery query) {
     return query.then.isDefined && ![constants.rows, constants.column].contains(query.strategy);
   }
 
-  bool isFindAllAndWrongStrategy(Query query) {
+  bool isFindAllAndWrongStrategy(IQuery query) {
     return query.name == constants.findAll && query.strategy != constants.rows && (query.strategy != constants.column || query.then.isNotDefined);
   }
 
-  bool isFindAndWrongStrategy(Query query) {
+  bool isFindAndWrongStrategy(IQuery query) {
     return query.name == constants.find && (query.strategy != constants.row || query.then.isDefined);
   }
 
@@ -111,7 +125,7 @@ class ModelValidation implements IModelValidation {
     return ![constants.get, constants.post, constants.put, constants.delete].contains(method);
   }
 
-  bool hasNotOneKey(Model model) {
+  bool hasNotOneKey(IModel model) {
     bool found = false;
     for (Column column in model.columns.values) {
       if (column.key) {
@@ -125,11 +139,11 @@ class ModelValidation implements IModelValidation {
     return !found;
   }
 
-  bool hasModelCacheAndNotFindAll(Model model) {
+  bool hasModelCacheAndNotFindAll(IModel model) {
     return model.hasCache && model.getQuery(constants.findAll).isNotDefined;
   }
 
-  bool isLooping(Query query, [List<String> previous]) {
+  bool isLooping(IQuery query, [List<String> previous]) {
     previous = previous == null ? [] : previous;
     if (previous.contains(query.name)) {
       return true;
@@ -146,27 +160,31 @@ class ModelValidation implements IModelValidation {
     }
   }
 
-  bool isFindWithQueryCacheAndModelCache(Query query) {
+  bool isFindWithQueryCacheAndModelCache(IQuery query) {
     return query.name == constants.find && query.hasCache && query.model.hasCache;
   }
 
-  bool hasNoRemoteAndThen(Query query) {
+  bool hasNoRemoteAndThen(IQuery query) {
     return query.remote.isNotDefined && query.then.isDefined;
   }
 
-  bool hasNoneStrategyAndNoRemote(Query query) {
+  bool hasNoneStrategyAndNoRemote(IQuery query) {
     return query.strategy == constants.none && query.remote.isNotDefined;
   }
 
-  bool hasNoneStrategyAndGetType(Query query) {
+  bool hasNoneStrategyAndGetType(IQuery query) {
     return query.strategy == constants.none && query.type == constants.get;
   }
 
-  bool hasNoneStrategyAndThen(Query query) {
+  bool hasNoneStrategyAndThen(IQuery query) {
     return query.strategy == constants.none && query.then.isDefined;
   }
 
-  bool hasNoneStrategyAndQueryCache(Query query) {
+  bool hasNoneStrategyAndQueryCache(IQuery query) {
     return query.strategy == constants.none && query.hasCache;
+  }
+
+  bool nestedModelNotFound(IModelDescription modelDescription, IColumn column) {
+    return column.isModelDescription && modelDescription.findByName(column.type).isNotDefined;
   }
 }

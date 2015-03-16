@@ -29,6 +29,9 @@ abstract class IModel {
   /// The associated class mirror
   ClassMirror classMirror;
 
+  /// Indicates if the model can be used only for nested types.
+  bool isNestedOnly;
+
   /// Return the list of all query names.
   Iterable<String> get queryNames;
 
@@ -79,7 +82,14 @@ abstract class IColumn {
   VariableMirror variableMirror;
 
   /// The type of the column
+  /// If [modelDescription] = `true`, it will refer to the model name to use, otherwise the simple converter.
   String type;
+
+  /// Indicates if the [type] refers to a model description or a simple converter.
+  bool isModelDescription;
+
+  /// Returns the full name of the column (prefixed with the model name).
+  String get fullName;
 
   /// Creates a copy of this column.
   /// The associated model will not be copied and this last will not contain the column.

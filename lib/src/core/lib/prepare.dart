@@ -74,7 +74,13 @@ void processColumn(VariableMirror columnMirror, Model model) {
   columnMirror.metadata.forEach((metadata){
     if (metadata.hasReflectee) {
       if (metadata.reflectee is annotation.column) {
-        // Already done with getColumnName
+        var columnReflectee = metadata.reflectee as annotation.column;
+        // name: already done with getColumnName
+        if (columnReflectee.type == null) {
+          column.type = columnMirror.type.reflectedType.toString();
+        } else {
+          column.type = columnReflectee.type;
+        }
       } else if (metadata.reflectee is annotation.key) {
         column.key = true;
       } else if (metadata.reflectee is annotation.unique) {

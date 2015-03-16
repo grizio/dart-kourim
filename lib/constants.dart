@@ -41,3 +41,21 @@ const put = 'put';
 
 /// The `DELETE` method
 const delete = 'delete';
+
+/// Constant to be used for types being [DateTime].
+const datetimeType = 'DateTime';
+
+/// Constant to be used for types being boolean.
+const boolType = 'bool';
+
+/// Constant to be used for types being [Option].
+const optionType = 'Option';
+
+/// Constant to be used for types being [String].
+const stringType = 'String';
+
+/// Constant to be used for types being [int].
+const intType = 'int';
+
+/// Constant to be used for types being [double].
+const doubleType = 'double';

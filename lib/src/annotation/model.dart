@@ -96,9 +96,13 @@ class column {
   /// If not set, then the system will use the attribute name as column name.
   final String name;
 
+  /// The type to convert the value of the column.
+  /// The key must be defined in [IConverterStore]
+  final String type;
+
   /// Creates the annotation.
   /// See class variables for more information fo each parameter.
-  const column({this.name:null});
+  const column({this.name:null, this.type:null});
 }
 
 /// If a column has this annotation, then it will be considered as a part of the key.

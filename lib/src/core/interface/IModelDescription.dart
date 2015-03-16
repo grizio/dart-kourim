@@ -78,6 +78,9 @@ abstract class IColumn {
   /// The associated variable mirror
   VariableMirror variableMirror;
 
+  /// The type of the column
+  String type;
+
   /// Creates a copy of this column.
   /// The associated model will not be copied and this last will not contain the column.
   IColumn copy();

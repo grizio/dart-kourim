@@ -105,6 +105,7 @@ class Column implements IColumn {
   bool key;
   bool unique;
   VariableMirror variableMirror;
+  String type;
 
   @override
   IColumn copy() {

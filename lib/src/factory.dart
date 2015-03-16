@@ -160,6 +160,7 @@ IRequest createRequest() {
   return requestCreation();
 }
 
+
 IModelValidation _modelValidation;
 
 /// Gets the model validation.
@@ -174,4 +175,21 @@ IModelValidation get modelValidation {
 /// This function should be called for tests only.
 set modelValidation(IModelValidation modelValidation) {
   _modelValidation = modelValidation;
+}
+
+
+IConverterStore _converterStore;
+
+/// Gets the converter store.
+IConverterStore get converterStore {
+  if (_converterStore == null) {
+    _converterStore = new ConverterStore();
+  }
+  return _converterStore;
+}
+
+/// Sets the converter store
+/// This function should be called for tests only.
+set converterStore(IConverterStore converterStore) {
+  _converterStore = converterStore;
 }

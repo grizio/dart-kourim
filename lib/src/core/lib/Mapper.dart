@@ -22,29 +22,21 @@ class Mapper extends IMapper {
 
   @override
   Object toObjectOne(IModel model, Map<String, Object> values) {
+    var converterStore = factory.converterStore;
     InstanceMirror instanceMirror = model.classMirror.newInstance(new Symbol(''), []);
-    if (values is Map) {
-      model.columnNames.forEach((columnName) {
-        var column = model.getColumn(columnName).get();
-        if (values.containsKey(column.name)) {
-          instanceMirror.setField(column.variableMirror.simpleName, values[column.name]);
-        }
-      });
-    } else {
-      // values is primitive
-      for (var columnName in model.columnNames) {
-        var column = model.getColumn(columnName).get();
-        if (column.key) {
-          instanceMirror.setField(column.variableMirror.simpleName, values);
-          break;
-        }
-      };
-    }
+    model.columnNames.forEach((columnName) {
+      var column = model.getColumn(columnName).get();
+      if (values.containsKey(column.name)) {
+        var value = converterStore[column.type].jsonToType(values[column.name]);
+        instanceMirror.setField(column.variableMirror.simpleName, value);
+      }
+    });
     return instanceMirror.reflectee;
   }
 
   @override
   Map<String, Object> toJsonOne(IModel model, Object object, [List<String> keepFields]) {
+    var converterStore = factory.converterStore;
     var result = <String, Object>{};
     InstanceMirror instanceMirror = reflect(object);
     model.columnNames.forEach((columnName){
@@ -52,7 +44,8 @@ class Mapper extends IMapper {
       if (keepFields == null || keepFields.length == 0 || keepFields.contains(column.name)) {
         var valueMirror = instanceMirror.getField(column.variableMirror.simpleName);
         if (valueMirror.hasReflectee && valueMirror.reflectee != null) {
-          result[column.name] = valueMirror.reflectee;
+          var value = converterStore[column.type].typeToJson(valueMirror.reflectee);
+          result[column.name] = value;
         }
       }
     });

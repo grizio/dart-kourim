@@ -5,10 +5,22 @@ abstract class IQueryBuilder {
   /// Adds a parameter to the query
   void addParameter(String name, Object value);
 
+  /// Adds a parameter if the remote query has one and only one parameter.
+  /// In the other case throws an exception.
+  void addKeyParameter(Object value);
+
   /// Adds a list of parameters to the query.
   void addParameters(Map<String, Object> values);
 
+  /// Adds parameters from an entity for current query.
+  /// This method will add only fields defined in model configuration by [onQuery].
   void addInputEntity(Object object);
+
+  /// Joins entities with the query.
+  /// The developer must use the name of [join] annotation.
+  /// To chain several joins (from entity A to entity B then C),
+  /// the given [name] should be the composite of join names separated by "`.`" (example: `"b.c"`).
+  void join(String name);
 
   /// Gets the constraint that all results in the query must conform to be returned to the user.
   Option<Constraint> get constraint;

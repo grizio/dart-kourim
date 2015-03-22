@@ -24,6 +24,7 @@ class Model implements IModel {
   String name;
   Map<String, IColumn> columns = {};
   Map<String, IQuery> queries = {};
+  Map<String, IJoin> joins = {};
   Option<String> storage;
   Option<String> strategy;
   Option<int> limit;
@@ -44,6 +45,10 @@ class Model implements IModel {
   @override
   Iterable<String> get columnNames {
     return columns.keys;
+  }
+
+  Iterable<String> get joinNames {
+    return joins.keys;
   }
 
   @override
@@ -69,6 +74,12 @@ class Model implements IModel {
   }
 
   @override
+  void addJoin(IJoin join) {
+    joins[join.name] = join;
+    join.model = this;
+  }
+
+  @override
   Option<IQuery> getQuery(String name) {
     return new Option(queries[name]);
   }
@@ -76,6 +87,11 @@ class Model implements IModel {
   @override
   Option<IColumn> getColumn(String name) {
     return new Option(columns[name]);
+  }
+
+  @override
+  Option<IJoin> getJoin(String name) {
+    return new Option(joins[name]);
   }
 
   @override
@@ -111,6 +127,21 @@ class Column implements IColumn {
 
   @override
   String get fullName => model.name + '.' + name;
+
+  @override
+  Object getValue(Object source) {
+    var valueMirror = reflect(source).getField(variableMirror.simpleName);
+    if (valueMirror.hasReflectee) {
+      return valueMirror.reflectee;
+    } else {
+      return null;
+    }
+  }
+
+  @override
+  void setValue(Object source, Object value) {
+    reflect(source).setField(variableMirror.simpleName, value);
+  }
 
   @override
   IColumn copy() {
@@ -168,5 +199,41 @@ class Query implements IQuery {
     query.limit = limit;
     query.strategy = strategy;
     return query;
+  }
+}
+
+class Join implements IJoin {
+  IModel model;
+  String name;
+  String from;
+  String to;
+  String by;
+  VariableMirror variableMirror;
+
+  @override
+  Object getValue(Object source) {
+    var valueMirror = reflect(source).getField(variableMirror.simpleName);
+    if (valueMirror.hasReflectee) {
+      return valueMirror.reflectee;
+    } else {
+      return null;
+    }
+  }
+
+  @override
+  void setValue(Object source, Object value) {
+    reflect(source).setField(variableMirror.simpleName, value);
+  }
+
+  @override
+  IJoin copy() {
+    var join = new Join();
+    join.model = model;
+    join.name = name;
+    join.from = from;
+    join.to = to;
+    join.by = by;
+    join.variableMirror = variableMirror;
+    return join;
   }
 }

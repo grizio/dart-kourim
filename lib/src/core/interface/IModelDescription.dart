@@ -38,6 +38,9 @@ abstract class IModel {
   /// List of column names for the model.
   Iterable<String> get columnNames;
 
+  /// List of join names for the model.
+  Iterable<String> get joinNames;
+
   /// Indicates if the model has a cache.
   bool get hasCache;
 
@@ -53,11 +56,17 @@ abstract class IModel {
   /// Adds a column into the model.
   void addColumn(IColumn column);
 
+  /// Adds a join into the model.
+  void addJoin(IJoin join);
+
   /// Returns an optional query from this model in terms of its key.
   Option<IQuery> getQuery(String name);
 
   /// Returns an optional column from this model in terms of its name.
   Option<IColumn> getColumn(String name);
+
+  /// Returns an optional join from this model in terms of its name.
+  Option<IJoin> getJoin(String name);
 
   /// Creates a copy of this model.
   /// It will also create a copy of associated elements.
@@ -91,6 +100,12 @@ abstract class IColumn {
   /// Returns the full name of the column (prefixed with the model name).
   String get fullName;
 
+  /// Returns the value of the column from given source.
+  Object getValue(Object source);
+
+  /// Set the value of the column from given source.
+  void setValue(Object source, Object value);
+
   /// Creates a copy of this column.
   /// The associated model will not be copied and this last will not contain the column.
   IColumn copy();
@@ -114,7 +129,7 @@ abstract class IQuery {
   Option<IQuery> get thenQuery;
 
   /// The type of the remote call (HTTP method).
-  Option<String> type;
+  String type;
 
   /// Indicates if the remote request needs an authentication to fetch data.
   bool authentication;
@@ -143,4 +158,34 @@ abstract class IQuery {
   /// Creates a copy of this query.
   /// The associated model will not be copied and this last will not contain the query.
   IQuery copy();
+}
+
+abstract class IJoin {
+  /// The associated model
+  IModel model;
+
+  /// The name of the join.
+  String name;
+
+  /// The attribute from current model used to create the join.
+  String from;
+
+  /// The targeted model to use when querying.
+  String to;
+
+  /// The query name to execute to fetch data of join.
+  String by;
+
+  /// The associated variable mirror
+  VariableMirror variableMirror;
+
+  /// Returns the value of the column join from given source.
+  Object getValue(Object source);
+
+  /// Set the value of the column join from given source.
+  void setValue(Object source, Object value);
+
+  /// Creates a copy of this join.
+  /// The associated model will not be copied and this last will not contain the join.
+  IJoin copy();
 }

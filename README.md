@@ -153,20 +153,6 @@ Below two different examples of requests, one to fetch and filter data and the o
 
 For the moment, it is all for the documentation, I hope it will be sufficient to you to test it.
 
-For next features, I will implement these one:
-
-### Type conversion and nested objects
-
-For the moment, only `int` ans `string` types are usable with the system.
-I will implement a mean to use complex objects with classic one implemented by default (eg: `Datetime`).
-
-The system cannot use nested objects. As the same idea as type conversion, I hope to implement nested this feature quickly.
-Nested objects are an object existing into the fetched data from or to server, not a foreign key which is the following feature.
-
-### Foreign keys
-
-Like an ORM, I want to implement a foreign key and join system to query complex objects.
-
 ## How to improve the system
 
 First of all, you can send your feedback. It will help me to understand your needs and yours wishes.
@@ -174,3 +160,11 @@ First of all, you can send your feedback. It will help me to understand your nee
 Secondly, you can clone the project and update it all you want.
 
 Thirdly, we can work together to develop future works.
+
+## Build version strategy
+
+From version 0.2.0, we apply the following version strategy: `<major>.<minor>.<correction>`:
+
+* `<major>` means the architecture of the project could change enough that the compatibility with older version is not kept.
+* `<minor>` means new functionalities have appeared but the project is compatible with older versions (except security issues).
+* `<correction>` means some corrections were done for given `<major>.<minor>` build.

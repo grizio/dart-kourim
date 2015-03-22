@@ -9,6 +9,7 @@ class QueryBuilder extends IQueryBuilder {
   Query query;
   IEntityManager em;
   bool isThen;
+  Map<String, Map> joins = {};
 
   Map<String, Object> parameters = {};
   Option<Constraint> _constraint = None;
@@ -21,6 +22,21 @@ class QueryBuilder extends IQueryBuilder {
   }
 
   @override
+  void addKeyParameter(Object value) {
+    if (query.remote.isDefined) {
+      var remote = query.remote.get();
+      var matches = new RegExp(':([a-zA-Z0-9]+)').allMatches(remote);
+      if (matches.length != 1) {
+        throw 'The remote query ${remote} does not have a single parameter.';
+      } else {
+        addParameter(matches.first.group(1), value);
+      }
+    } else {
+      throw 'The query does not have a remote query so the call of addKeyParameter is forbidden.';
+    }
+  }
+
+  @override
   void addParameters(Map<String, Object> values) {
     values.keys.forEach((key) => addParameter(key, values[key]));
   }
@@ -28,6 +44,18 @@ class QueryBuilder extends IQueryBuilder {
   @override
   addInputEntity(Object object) {
     addParameters(factory.mapper.toJsonOne(query.model, object, query.fields));
+  }
+
+  @override
+  void join(String name) {
+    isJoinValid(name).match(some: (error) => throw error, none: (){
+      List<String> compositeName = name.split('.');
+      var mapJoins = joins;
+      for (var partName in compositeName) {
+        mapJoins.putIfAbsent(partName, () => {});
+        mapJoins = mapJoins[partName];
+      }
+    });
   }
 
   @override
@@ -43,9 +71,13 @@ class QueryBuilder extends IQueryBuilder {
   @override
   Future<dynamic> execute() {
     log.info('execute(${query.fullName}, ${JSON.encode(parameters)}) start');
-    return _execute().then((_) {
-      log.info('execute(${query.fullName}, ${JSON.encode(parameters)}) end');
-      return _;
+    return _execute().then((result) {
+      if (joins.isNotEmpty) {
+        return processJoins(result).then((_) => result);
+      } else {
+        log.info('execute(${query.fullName}, ${JSON.encode(parameters)}) end');
+        return result;
+      }
     });
   }
 
@@ -100,7 +132,7 @@ class QueryBuilder extends IQueryBuilder {
       var prepare = callRemote();
       var asMap = true;
       if (query.then.isDefined) {
-        var asMap = false;
+        asMap = false;
         prepare = prepare.then((values){
           return nextQuery(values);
         });
@@ -126,11 +158,86 @@ class QueryBuilder extends IQueryBuilder {
 
       // When there is not a strategy, we return any result.
       if (query.strategy == constants.none) {
-        return prepareFindAllModel().then((_) => null);
+        return prepare.then((_) => null);
       } else {
         return prepare.then((_) => asMap ? factory.mapper.toObject(query.model, _) : _);
       }
     }
+  }
+
+  /// Processes all joins for current result and put them into this one.
+  Future processJoins(dynamic currentResult) {
+    return Future.wait(joins.keys.map((joinName){
+      var join = query.model.getJoin(joinName).get();
+      if (currentResult is List) {
+        return Future.wait((currentResult as List).map((_) => executeOneJoin(joinName, _))).then((joinResult){
+          if (joinResult is Option) {
+            joinResult = (joinResult as Option).get();
+          }
+          join.setValue(currentResult, joinResult);
+        });
+      } else if (currentResult is Option) {
+        return (currentResult as Option).map((result) => executeOneJoin(joinName, result).then((joinResult){
+          if (joinResult is Option) {
+            joinResult = (joinResult as Option).get();
+          }
+          join.setValue(result, joinResult);
+        })).getOrElse(() => new Future.value());
+      } else {
+        return executeOneJoin(joinName, currentResult).then((joinResult){
+          if (joinResult is Option) {
+            joinResult = (joinResult as Option).get();
+          }
+          join.setValue(currentResult, joinResult);
+        });
+      }
+    }));
+  }
+
+  Future<dynamic> executeOneJoin(String joinName, Object parent) {
+    var join = query.model.getJoin(joinName).get();
+    var model = join.model;
+    var column = model.getColumn(join.from).get();
+    var value = column.getValue(parent);
+    if (value is List) {
+      return Future.wait((value as List).map((value){
+        return em.createQuery(join.to, join.by).then((joinQB) {
+          insertNestedJoins(joinQB, joins[joinName]);
+          joinQB.addKeyParameter(value);
+          return joinQB.execute();
+        });
+      }));
+    } else {
+      return em.createQuery(join.to, join.by).then((joinQB) {
+        insertNestedJoins(joinQB, joins[joinName]);
+        joinQB.addKeyParameter(value);
+        return joinQB.execute();
+      });
+    }
+  }
+
+  void insertNestedJoins(IQueryBuilder joinQB, Map<String, Map> joins) {
+    if (joinQB is QueryBuilder) {
+      // We set directly the sub-tree.
+      (joinQB as QueryBuilder).joins = joins;
+    } else {
+      // Should never happen if system is consistent but used for specific cases (as unit test)
+      for (var join in computeNestedJoinList(joins)) {
+        joinQB.join(join);
+      }
+    }
+  }
+
+  List<String> computeNestedJoinList(Map<String, Map> joins, [String prefix = '']) {
+    var result = <String>[];
+    for (var join in joins.keys) {
+      if (joins[join].isEmpty) {
+        result.add(prefix + '.' + join);
+      } else {
+        result.addAll(computeNestedJoinList(joins[join], prefix + '.' + join));
+      }
+    }
+    return result;
   }
 
   /// Prepares the local cache for the [constants.findAll] query.
@@ -294,6 +401,27 @@ class QueryBuilder extends IQueryBuilder {
     } else {
       return factory.sessionStorage;
     }
+  }
+
+  Option<String> isJoinValid(String name) {
+    var modelDescription = factory.modelDescription;
+    if (name == null || name == '') {
+      return Some('The join name cannot be null.');
+    } else {
+      var joinNames = name.split('.');
+      var model = query.model;
+      for (var joinName in joinNames) {
+        // Recursive check in model joins by a loop
+        var joinOpt = model.getJoin(joinName);
+        if (joinOpt.isDefined) {
+          var join = joinOpt.get();
+          model = modelDescription.findByName(join.to).get();
+        } else {
+          return Some('The join name "${joinName}" is unknow in model "${model.name}".');
+        }
+      }
+    }
+    return None;
   }
 }
 

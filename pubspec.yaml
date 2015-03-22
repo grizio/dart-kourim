@@ -1,7 +1,7 @@
 name: kourim
 description: >
   A simple ORM to be used to fetch data with ajax and cache them on browser.
-version: 0.1.1
+version: 0.2.0
 author: "Gaëtan Rizio <gaetan@rizio.fr>"
 homepage: https://github.com/kneelnrise/dart-kourim
 dependencies:

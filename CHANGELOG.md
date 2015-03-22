@@ -10,3 +10,8 @@
 
 * Types of column and converters
 * Nested models (infinite nested)
+
+## 0.2.0
+
+* Joins to query a server (or local cache) on several level and between entities.
+* Some corrections on existing features.

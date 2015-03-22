@@ -153,3 +153,22 @@ class nestedOnly {
   /// See class variables for more information fo each parameter.
   const nestedOnly();
 }
+
+/// Indicates that the annotated attribute is a reference to another model.
+/// When querying a model, you can add joins because of these attributes.
+/// It is not intended to create joins in databases (local or remote) and must be managed by the developer.
+class join {
+  /// The name of the join, by default the attribute name.
+  final String name;
+
+  /// The attribute from current model used to create the join.
+  final String from;
+
+  /// The targeted model to use when querying.
+  final String to;
+
+  /// The query name to execute to fetch data of join.
+  final String by;
+
+  const join({this.name:null, this.from, this.to, this.by});
+}

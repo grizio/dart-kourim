@@ -31,8 +31,12 @@ void processClass(ClassMirror classMirror) {
       processModelMetadata(metadata, model);
     });
     classMirror.declarations.values.forEach((declaration) {
-      if (declaration is VariableMirror && isColumn(declaration)) {
-        processColumn(declaration, model);
+      if (declaration is VariableMirror) {
+        if (isColumn(declaration)) {
+          processColumn(declaration, model);
+        } else if (isJoin(declaration)) {
+          processJoin(declaration, model);
+        }
       }
     });
     factory.modelDescription.add(model);
@@ -96,6 +100,22 @@ void processColumn(VariableMirror columnMirror, Model model) {
   model.addColumn(column);
 }
 
+/// Processes a field which was defined as a join to extract its description from annotations.
+void processJoin(VariableMirror joinMirror, Model model) {
+  Join join = new Join();
+  join.variableMirror = joinMirror;
+  joinMirror.metadata.forEach((metadata){
+    if (metadata.hasReflectee && metadata.reflectee is annotation.join) {
+      var joinReflectee = (metadata.reflectee as annotation.join);
+      join.name = joinReflectee.name != null ? joinReflectee.name : MirrorSystem.getName(joinMirror.simpleName);
+      join.from = joinReflectee.from;
+      join.to = joinReflectee.to;
+      join.by = joinReflectee.by;
+    }
+  });
+  model.addJoin(join);
+}
+
 /// Is the [classMirror] a model?
 bool isModel(ClassMirror classMirror) {
   for (var metadata in classMirror.metadata) {
@@ -110,6 +130,16 @@ bool isModel(ClassMirror classMirror) {
 bool isColumn(VariableMirror variableMirror) {
   for (var metadata in variableMirror.metadata) {
     if (metadata.hasReflectee && metadata.reflectee is annotation.column) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/// Is the [variableMirror] a join?
+bool isJoin(VariableMirror variableMirror) {
+  for (var metadata in variableMirror.metadata) {
+    if (metadata.hasReflectee && metadata.reflectee is annotation.join) {
       return true;
     }
   }
@@ -150,6 +180,10 @@ String getColumnType(VariableMirror variableMirror) {
   if (type != null) {
     return type;
   } else {
-    return variableMirror.type.reflectedType.toString();
+    if (variableMirror.type.isSubtypeOf(reflectType(List))) {
+      return MirrorSystem.getName(variableMirror.type.typeArguments[0].simpleName);
+    } else {
+      return MirrorSystem.getName(variableMirror.type.simpleName);
+    }
   }
 }

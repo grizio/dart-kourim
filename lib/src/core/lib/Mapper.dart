@@ -6,6 +6,8 @@ class Mapper extends IMapper {
   dynamic toObject(IModel model, dynamic values) {
     if (values is List) {
       return (values as List).map((_) => toObjectOne(model, _)).toList();
+    } else if (values is Option) {
+      return (values as Option).map((_) => toObjectOne(model, _));
     } else {
       return toObjectOne(model, values);
     }
@@ -15,6 +17,8 @@ class Mapper extends IMapper {
   dynamic toJson(IModel model, dynamic values) {
     if (values is List) {
       return (values as List).map((_) => toJsonOne(model, _));
+    } else if (values is Option) {
+      return (values as Option).map((_) => toJsonOne(model, _));
     } else {
       return toJsonOne(model, values);
     }
@@ -28,11 +32,17 @@ class Mapper extends IMapper {
       var column = model.getColumn(columnName).get();
       if (values.containsKey(column.name)) {
         var value;
+        var columnValue = values[column.name];
         if (column.isModelDescription) {
           var nestedModel = factory.modelDescription.findByName(column.type).get();
-          value = toObject(nestedModel, values[column.name]);
+          value = toObject(nestedModel, columnValue);
         } else {
-          value = converterStore[column.type].jsonToType(values[column.name]);
+          var converter = converterStore[column.type];
+          if (columnValue is List) {
+            value = (columnValue as List).map(converter.jsonToType).toList();
+          } else {
+            value = converter.jsonToType(columnValue);
+          }
         }
         instanceMirror.setField(column.variableMirror.simpleName, value);
       }
@@ -55,7 +65,12 @@ class Mapper extends IMapper {
             var nestedModel = factory.modelDescription.findByName(column.type).get();
             value = toJson(nestedModel, valueMirror.reflectee);
           } else {
-            var value = converterStore[column.type].typeToJson(valueMirror.reflectee);
+            var converter = converterStore[column.type];
+            if (valueMirror.reflectee is List) {
+              value = (valueMirror.reflectee as List).map(converter.typeToJson).toList();
+            } else {
+              value = converter.typeToJson(valueMirror.reflectee);
+            }
           }
           result[column.name] = value;
         }

@@ -1,15 +1,5 @@
 part of kourim.storage.interface;
 
-class internal {
-  const internal();
-}
-
-@Injectable()
-class DatabaseApplicationName {
-  final String name;
-  DatabaseApplicationName(this.name);
-}
-
 /// This interface describes classes which provide some database operations.
 abstract class IDatabase extends IModelStorage {
   /// The name of the database.

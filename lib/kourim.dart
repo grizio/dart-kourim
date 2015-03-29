@@ -1,7 +1,13 @@
 library kourim;
 
-export 'src/annotation/kourim.annotation.lib.dart';
-export 'src/core/lib/kourim.core.lib.dart' show prepare;
-export 'src/query/interface/kourim.query.interface.dart' show IEntityManager, IQueryBuilder;
-export 'src/storage/interface/kourim.storage.interface.dart' show IDatabase;
-export 'src/factory.dart' show database, entityManager;
+import 'package:di/di.dart';
+import 'src/storage/lib/kourim.storage.lib.dart';
+import 'src/storage/interface/kourim.storage.interface.dart';
+import 'dart:html';
+
+void injectDependencies(Module module) {
+  module.bind(IDatabase, toInstanceOf: DatabaseModelStorage, inject: [DatabaseApplicationName]);
+  module.bind(IDatabase, toFactory: () => new DatabaseModelStorage('_kourim'), withAnnotation: const internal());
+  module.bind(IModelStorage, toFactory: () => new MappedModelStorage(window.localStorage), withAnnotation: const local());
+  module.bind(IModelStorage, toFactory: () => new MappedModelStorage(window.sessionStorage), withAnnotation: const session());
+}

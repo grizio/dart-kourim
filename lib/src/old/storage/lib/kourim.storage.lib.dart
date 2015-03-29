@@ -5,8 +5,6 @@ import 'dart:html';
 import 'dart:indexed_db' as idb;
 import 'dart:convert';
 
-import 'package:di/di.dart';
-
 import '../../../../../packages/klang/klang.dart';
 import '../../../../../packages/klang/utilities/integer.dart' as integerUtilities;
 

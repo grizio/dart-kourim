@@ -7,4 +7,12 @@ import 'package:di/di.dart';
 
 part 'Field.dart';
 part 'Query.dart';
+part 'Request.dart';
 part 'Table.dart';
+
+/// Method to create a request.
+typedef IRequest IRequestCreation();
+
+IRequest requestCreation() {
+  return new Request();
+}

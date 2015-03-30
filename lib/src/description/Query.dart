@@ -1,9 +1,7 @@
 part of kourim.description;
 
 /*
-void _extractParametersFromRemote() {
-    _requiredParameters.addAll(new RegExp('{([^}]+)}').allMatches(remote).map((_) => _.group(1)));
-  }
+
 */
 
 abstract class Query {
@@ -30,38 +28,33 @@ abstract class Constraint {
 }
 
 class GetQuery implements Query, PreparedQuery {
+  final Injector injector;
   final Table table;
   final String remote;
   final Option<ITableStorage> tableStorage;
   final Option<Duration> cacheDuration;
-  final GetQuery then;
+  final Option<GetQuery> _then;
   final List<Field> requiredParameters;
 
-  const GetQuery(this.table, this.remote, this.tableStorage, this.cacheDuration, this.then, this.requiredParameters);
+  GetQuery(this.injector, this.table, this.remote, this.tableStorage, this.cacheDuration, this._then, this.requiredParameters);
 
   GetQuery withCache(ITableStorage tableStorage, [Duration duration=null]) {
-    return new GetQuery(table, remote, Some(tableStorage), Some(cacheDuration), then, requiredParameters);
+    return new GetQuery(injector, table, remote, Some(tableStorage), Some(cacheDuration), _then, requiredParameters);
   }
 
-  GetQuery requiring(dynamic fields) {
-    var newRequiredParameters = [];
-    newRequiredParameters.addAll(requiredParameters);
-    if (fields is List) {
-      newRequiredParameters.addAll(fields);
-    } else {
-      newRequiredParameters.add(fields);
-    }
-    return new GetQuery(table, remote, tableStorage, cacheDuration, then, newRequiredParameters);
+  GetQuery then(GetQuery getQuery) {
+    return new GetQuery(injector, table, remote, tableStorage, cacheDuration, Some(getQuery), requiredParameters);
   }
 }
 
 class PostQuery implements Query {
+  final Injector injector;
   final Table table;
   final String remote;
   final List<Field> requiredParameters;
   final List<Field> optionalParameters;
 
-  const PostQuery(this.table, this.remote, this.requiredParameters, this.optionalParameters);
+  PostQuery(this.injector, this.table, this.remote, this.requiredParameters, this.optionalParameters);
 
   PostQuery requiring(dynamic fields) {
     var newRequiredParameters = <Field>[];
@@ -71,7 +64,7 @@ class PostQuery implements Query {
     } else {
       newRequiredParameters.add(fields);
     }
-    return new PostQuery(table, remote, newRequiredParameters, optionalParameters);
+    return new PostQuery(injector, table, remote, newRequiredParameters, optionalParameters);
   }
 
   PostQuery optional(dynamic fields) {
@@ -82,17 +75,50 @@ class PostQuery implements Query {
     } else {
       newOptionalParameters.add(fields);
     }
-    return new PostQuery(table, remote, requiredParameters, newOptionalParameters);
+    return new PostQuery(injector, table, remote, requiredParameters, newOptionalParameters);
+  }
+
+  @override
+  Future<dynamic> execute([Map<String, Object> parameters]) {
+    var url = remote;
+    var params = {};
+    for (var requiredParameter in requiredParameters) {
+      var name = requiredParameter.name;
+      if (!parameters.containsKey(name)) {
+        throw 'A required parameter for the query was not found (local query from table ${table._tableName}})';
+      } else {
+        if (url.indexOf('{${name}}') != -1) {
+          url = url.replaceAll('{${name}}', parameters[name]);
+        } else {
+          params[name] = parameters[name];
+        }
+      }
+    }
+    for (var optionalParameter in optionalParameters) {
+      var name = optionalParameter.name;
+      if (parameters.containsKey(name)) {
+        params[name] = parameters[name];
+      }
+    }
+
+    var requestCreation = injector.get(IRequestCreation);
+    var request = requestCreation() as IRequest;
+    request.uri = url;
+    request.method = 'POST';
+    request.parameters = params;
+    request.parseResult = false;
+    return request.send();
   }
 }
 
 class PutQuery implements Query {
+  final Injector injector;
   final Table table;
   final String remote;
   final List<Field> requiredParameters;
   final List<Field> optionalParameters;
 
-  const PutQuery(this.table, this.remote, this.requiredParameters, this.optionalParameters);
+  PutQuery(this.injector, this.table, this.remote, this.requiredParameters, this.optionalParameters);
 
   PutQuery requiring(dynamic fields) {
     var newRequiredParameters = <Field>[];
@@ -102,7 +128,7 @@ class PutQuery implements Query {
     } else {
       newRequiredParameters.add(fields);
     }
-    return new PutQuery(table, remote, newRequiredParameters, optionalParameters);
+    return new PutQuery(injector, table, remote, newRequiredParameters, optionalParameters);
   }
 
   PutQuery optional(dynamic fields) {
@@ -113,41 +139,83 @@ class PutQuery implements Query {
     } else {
       newOptionalParameters.add(fields);
     }
-    return new PutQuery(table, remote, requiredParameters, newOptionalParameters);
+    return new PutQuery(injector, table, remote, requiredParameters, newOptionalParameters);
+  }
+
+  @override
+  Future<dynamic> execute([Map<String, Object> parameters]) {
+    var url = remote;
+    var params = {};
+    for (var requiredParameter in requiredParameters) {
+      var name = requiredParameter.name;
+      if (!parameters.containsKey(name)) {
+        throw 'A required parameter for the query was not found (local query from table ${table._tableName}})';
+      } else {
+        if (url.indexOf('{${name}}') != -1) {
+          url = url.replaceAll('{${name}}', parameters[name]);
+        } else {
+          params[name] = parameters[name];
+        }
+      }
+    }
+    for (var optionalParameter in optionalParameters) {
+      var name = optionalParameter.name;
+      if (parameters.containsKey(name)) {
+        params[name] = parameters[name];
+      }
+    }
+
+    var requestCreation = injector.get(IRequestCreation);
+    var request = requestCreation() as IRequest;
+    request.uri = url;
+    request.method = 'PUT';
+    request.parameters = params;
+    request.parseResult = false;
+    return request.send();
   }
 }
 
 class DeleteQuery implements Query {
+  final Injector injector;
   final Table table;
   final String remote;
   final List<Field> requiredParameters;
 
-  const DeleteQuery(this.table, this.remote, this.requiredParameters);
+  DeleteQuery(this.injector, this.table, this.remote, this.requiredParameters);
 
-  DeleteQuery requiring(dynamic fields) {
-    var newRequiredParameters = <Field>[];
-    newRequiredParameters.addAll(requiredParameters);
-    if (fields is List) {
-      newRequiredParameters.addAll(fields);
-    } else {
-      newRequiredParameters.add(fields);
+  @override
+  Future<dynamic> execute([Map<String, Object> parameters]) {
+    var url = remote;
+    for (var requiredParameter in requiredParameters) {
+      if (!parameters.containsKey(requiredParameter.name)) {
+        throw 'A required parameter for the query was not found (local query from table ${table._tableName}})';
+      } else {
+        url = url.replaceAll('{${requiredParameter.name}}', parameters[requiredParameter.name]);
+      }
     }
-    return new DeleteQuery(table, remote, newRequiredParameters);
+
+    var requestCreation = injector.get(IRequestCreation);
+    var request = requestCreation() as IRequest;
+    request.uri = url;
+    request.method = 'DELETE';
+    request.parseResult = false;
+    return request.send();
   }
 }
 
 class LocalQuery implements Query {
+  final Injector injector;
   final FullCachedTable table;
   final String remote;
   final ITableStorage tableStorage;
   final List<Constraint> constraints;
 
-  const LocalQuery(this.table, this.remote, this.tableStorage, this.constraints);
+  LocalQuery(this.injector, this.table, this.remote, this.tableStorage, this.constraints);
 
   LocalQuery verifying(Constraint constraint) {
     var newConstraints = [];
     newConstraints.addAll(constraints);
-    return new LocalQuery(table, remote, tableStorage, newConstraints);
+    return new LocalQuery(injector, table, remote, tableStorage, newConstraints);
   }
 
   @override
@@ -173,14 +241,15 @@ class LocalQuery implements Query {
 }
 
 class FindAllQuery implements Query, PreparedQuery {
+  final Injector injector;
   final Table table;
   final GetQuery getQuery;
   final ITableStorage tableStorage;
-  final Duration cacheDuration;
+  final Option<Duration> cacheDuration;
   Future _loading;
 
   // cannot be const because of _loading.
-  FindAllQuery(this.table, this.getQuery, this.tableStorage, this.cacheDuration);
+  FindAllQuery(this.injector, this.table, this.getQuery, this.tableStorage, this.cacheDuration);
 
   @override
   Future<dynamic> execute([Map<String, Object> parameters, ITableStorage ts]) {
@@ -209,9 +278,13 @@ class FindAllQuery implements Query, PreparedQuery {
     IModelStorage modelStorage = tableStorage.modelStorage;
     return modelStorage['_cacheForTable'].find(tableStorage.name).then((Option<Map> isExpired) {
       if (isExpired.isDefined) {
-        var date = new DateTime.fromMillisecondsSinceEpoch(isExpired.value['start']);
-        date = date.add(cacheDuration);
-        return date.isAfter(new DateTime.now());
+        if (cacheDuration.isDefined) {
+          var date = new DateTime.fromMillisecondsSinceEpoch(isExpired.value['start']);
+          date = date.add(cacheDuration.value);
+          return date.isAfter(new DateTime.now());
+        } else {
+          return false;
+        }
       } else {
         return true;
       }
@@ -220,14 +293,15 @@ class FindAllQuery implements Query, PreparedQuery {
 }
 
 class FindQuery implements Query, PreparedQuery {
+  final Injector injector;
   final Table table;
   final GetQuery getQuery;
   final ITableStorage tableStorage;
-  final Duration cacheDuration;
+  final Option<Duration> cacheDuration;
   Map<Object, Future> _loading = {};
 
   // cannot be const because of _loading.
-  FindQuery(this.table, this.getQuery, this.tableStorage, this.cacheDuration);
+  FindQuery(this.injector, this.table, this.getQuery, this.tableStorage, this.cacheDuration);
 
   @override
   Future<dynamic> execute([Map<String, Object> parameters]) {
@@ -258,9 +332,13 @@ class FindQuery implements Query, PreparedQuery {
     IModelStorage modelStorage = tableStorage.modelStorage;
     return modelStorage['_cacheForTable'].find(tableStorage.name + key).then((Option<Map> isExpired) {
       if (isExpired.isDefined) {
-        var date = new DateTime.fromMillisecondsSinceEpoch(isExpired.value['start']);
-        date = date.add(cacheDuration);
-        return date.isAfter(new DateTime.now());
+        if (cacheDuration.isDefined) {
+          var date = new DateTime.fromMillisecondsSinceEpoch(isExpired.value['start']);
+          date = date.add(cacheDuration.value);
+          return date.isAfter(new DateTime.now());
+        } else {
+          return false;
+        }
       } else {
         return true;
       }

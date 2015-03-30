@@ -4,8 +4,9 @@ part of kourim.storage.lib;
 class DatabaseTableStorage implements ITableStorage {
   final String _name;
   final Future<idb.Database> db;
+  final DatabaseModelStorage modelStorage;
 
-  DatabaseTableStorage(this._name, this.db);
+  DatabaseTableStorage(this._name, this.db, this.modelStorage);
 
   @override
   String get name => _name;

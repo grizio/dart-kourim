@@ -1,257 +1,277 @@
 part of kourim.description;
 
-Future<bool> _isExpired(IModelStorage modelStorage, Option<Duration> duration) {
-  return modelStorage['_cacheForTable'].find(_tableName).then((Option<Map> isExpired) {
-    if (isExpired.isDefined) {
-      if (duration.isDefined) {
-        var date = new DateTime.fromMillisecondsSinceEpoch(isExpired.value['start']);
-        date = date.add(duration.value);
-        return date.isAfter(new DateTime.now());
-      } else {
-        return false;
-      }
-    } else {
-      return true;
-    }
-  });
-}
-
-class RemoteQueryCache {
-  final String remote;
-  final Duration duration;
-
-  RemoteQueryCache(this.remote, this.duration);
-}
-
-abstract class Query {
-  Future<dynamic> execute([Map<String, Object> parameters={}]);
-
-  List<String> _requiredParameters = [];
-
-  Query clone([Query clone]) {
-    if (clone == null) {
-      return null;
-    } else {
-      clone.requiredParameters [];
-      clone.requiredParameters.addAll(requiredParameters);
-      return clone;
-    }
-  }
-}
-
-abstract class RemoteQuery extends Query {
-  final String remote;
-  final String type;
-  Option<RemoteQueryCache> cache = None;
-  Option<GetQuery> then = None;
-
-  RemoteQuery(this.remote, this.type) {
-    _extractParametersFromRemote();
-  }
-
-  void _extractParametersFromRemote() {
+/*
+void _extractParametersFromRemote() {
     _requiredParameters.addAll(new RegExp('{([^}]+)}').allMatches(remote).map((_) => _.group(1)));
   }
+*/
 
-  RemoteQuery withCache(String destination, Duration duration) {
-    var clone = clone();
-    clone.cache = Some(new TableCache(destination, duration));
+abstract class Query {
+  /// Executes the current Query with given [parameters].
+  /// If the query is a read query (cf. [GetQuery], [FindAllQuery] and [FindQuery]),
+  /// then the result will be a list of lines matching the query.
+  /// Otherwise, it will be null (the [Future] is used to determine the end of the query).
+  Future<dynamic> execute([Map<String, Object> parameters]);
+}
+
+abstract class PreparedQuery {
+  /// Prepares the query by caching the result into given [tableStorage].
+  /// This methods is mainly used by the system to get data for [FullCachedTable] or [PartialCachedTable].
+  ///
+  /// It can also be used by the developer is he want to copy the result into another table.
+  /// Then, when he will change data, it could use the copied table and not change original data.
+  Future prepare(ITableStorage tableStorage, [Map<String, Object> parameters]);
+}
+
+abstract class Constraint {
+  String get key;
+  bool get isRequired;
+  bool validate(Map<String, Object> data, Object value);
+}
+
+class GetQuery implements Query, PreparedQuery {
+  final Table table;
+  final String remote;
+  final Option<ITableStorage> tableStorage;
+  final Option<Duration> cacheDuration;
+  final GetQuery then;
+  final List<Field> requiredParameters;
+
+  const GetQuery(this.table, this.remote, this.tableStorage, this.cacheDuration, this.then, this.requiredParameters);
+
+  GetQuery withCache(ITableStorage tableStorage, [Duration duration=null]) {
+    return new GetQuery(table, remote, Some(tableStorage), Some(cacheDuration), then, requiredParameters);
   }
 
-  RemoteQuery then(GetQuery query) {
-    var clone = clone();
-    clone.then = Some(query);
-  }
-
-  @override
-  RemoteQuery clone([RemoteQuery clone]) {
-    clone = super.clone(clone);
-    if (clone == null) {
-      return null;
+  GetQuery requiring(dynamic fields) {
+    var newRequiredParameters = [];
+    newRequiredParameters.addAll(requiredParameters);
+    if (fields is List) {
+      newRequiredParameters.addAll(fields);
     } else {
-      clone.remote = remote;
-      clone.type = type;
-      clone.cache = cache;
-      return clone;
+      newRequiredParameters.add(fields);
     }
+    return new GetQuery(table, remote, tableStorage, cacheDuration, then, newRequiredParameters);
   }
 }
 
-abstract class ParameterRemoteQuery extends RemoteQuery {
-  List<String> optionalParameters = [];
+class PostQuery implements Query {
+  final Table table;
+  final String remote;
+  final List<Field> requiredParameters;
+  final List<Field> optionalParameters;
 
-  ParameterRemoteQuery requiring(List<String> parameters) {
-    var clone = clone();
-    clone.requiredParameters.addAll(parameters);
-    return clone;
-  }
+  const PostQuery(this.table, this.remote, this.requiredParameters, this.optionalParameters);
 
-  ParameterRemoteQuery optional(List<String> parameters) {
-    var clone = clone();
-    clone.optionalParameters.addAll(parameters);
-    return clone;
-  }
-
-  @override
-  ParameterRemoteQuery clone([ParameterRemoteQuery clone]) {
-    clone = super.clone(clone);
-    if (clone == null) {
-      return null;
+  PostQuery requiring(dynamic fields) {
+    var newRequiredParameters = <Field>[];
+    newRequiredParameters.addAll(requiredParameters);
+    if (fields is List) {
+      newRequiredParameters.addAll(fields);
     } else {
-      clone.optionalParameters = [];
-      clone.optionalParameters.addAll(optionalParameters);
-      return clone;
+      newRequiredParameters.add(fields);
     }
+    return new PostQuery(table, remote, newRequiredParameters, optionalParameters);
+  }
+
+  PostQuery optional(dynamic fields) {
+    var newOptionalParameters = <Field>[];
+    newOptionalParameters.addAll(optionalParameters);
+    if (fields is List) {
+      newOptionalParameters.addAll(fields);
+    } else {
+      newOptionalParameters.add(fields);
+    }
+    return new PostQuery(table, remote, requiredParameters, newOptionalParameters);
   }
 }
 
-class GetQuery extends RemoteQuery {
-  final Option<String> keyName;
+class PutQuery implements Query {
+  final Table table;
+  final String remote;
+  final List<Field> requiredParameters;
+  final List<Field> optionalParameters;
 
-  GetQuery(String remote, [String keyName]): super(remote, 'get') {
-    this.keyName = Some(keyName);
+  const PutQuery(this.table, this.remote, this.requiredParameters, this.optionalParameters);
+
+  PutQuery requiring(dynamic fields) {
+    var newRequiredParameters = <Field>[];
+    newRequiredParameters.addAll(requiredParameters);
+    if (fields is List) {
+      newRequiredParameters.addAll(fields);
+    } else {
+      newRequiredParameters.add(fields);
+    }
+    return new PutQuery(table, remote, newRequiredParameters, optionalParameters);
+  }
+
+  PutQuery optional(dynamic fields) {
+    var newOptionalParameters = <Field>[];
+    newOptionalParameters.addAll(optionalParameters);
+    if (fields is List) {
+      newOptionalParameters.addAll(fields);
+    } else {
+      newOptionalParameters.add(fields);
+    }
+    return new PutQuery(table, remote, requiredParameters, newOptionalParameters);
+  }
+}
+
+class DeleteQuery implements Query {
+  final Table table;
+  final String remote;
+  final List<Field> requiredParameters;
+
+  const DeleteQuery(this.table, this.remote, this.requiredParameters);
+
+  DeleteQuery requiring(dynamic fields) {
+    var newRequiredParameters = <Field>[];
+    newRequiredParameters.addAll(requiredParameters);
+    if (fields is List) {
+      newRequiredParameters.addAll(fields);
+    } else {
+      newRequiredParameters.add(fields);
+    }
+    return new DeleteQuery(table, remote, newRequiredParameters);
+  }
+}
+
+class LocalQuery implements Query {
+  final FullCachedTable table;
+  final String remote;
+  final ITableStorage tableStorage;
+  final List<Constraint> constraints;
+
+  const LocalQuery(this.table, this.remote, this.tableStorage, this.constraints);
+
+  LocalQuery verifying(Constraint constraint) {
+    var newConstraints = [];
+    newConstraints.addAll(constraints);
+    return new LocalQuery(table, remote, tableStorage, newConstraints);
   }
 
   @override
-  GetQuery clone([GetQuery clone]) {
-    if (clone == null) {
-      clone = new GetQuery(remote, keyName);
-    }
-    return super.clone(clone);
+  Future<dynamic> execute([Map<String, Object> parameters]) {
+    return table.findAll.prepare(tableStorage).then((_){
+      for (var constraint in constraints) {
+        if (constraint.isRequired && !parameters.containsKey(constraint.key)) {
+          throw 'A required parameter for the query was not found (local query from table ${table._tableName}})';
+        }
+      }
+      tableStorage.findManyWhen((data){
+        for (var constraint in constraints) {
+          if (parameters.containsKey(constraint.key)) {
+            if (!constraint.validate(data, parameters[key])) {
+              return false;
+            }
+          }
+        }
+        return true;
+      });
+    });
   }
 }
 
-class PostQuery extends ParameterRemoteQuery {
-  PostQuery(String remote): super(remote, 'post');
-
-  @override
-  PostQuery clone([PostQuery clone]) {
-    if (clone == null) {
-      clone = new PostQuery(remote);
-    }
-    return super.clone(clone);
-  }
-}
-
-class PutQuery extends ParameterRemoteQuery {
-  PutQuery(String remote): super(remote, 'put');
-
-  @override
-  PutQuery clone([PutQuery clone]) {
-    if (clone == null) {
-      clone = new PutQuery(remote);
-    }
-    return super.clone(clone);
-  }
-}
-
-class DeleteQuery extends RemoteQuery {
-  DeleteQuery(String remote): super(remote, 'delete');
-
-  @override
-  DeleteQuery clone([DeleteQuery clone]) {
-    if (clone == null) {
-      clone = new DeleteQuery(remote);
-    }
-    return super.clone(clone);
-  }
-}
-
-class LocalQuery extends Query {
-  @override
-  LocalQuery clone([LocalQuery clone]) {
-    if (clone == null) {
-      clone = new LocalQuery(remote);
-    }
-    return super.clone(clone);
-  }
-}
-
-class FindAllQuery extends Query {
-  final GetQuery _getQuery;
-  final IModelStorage _modelStorage;
-  final Option<Duration> _duration;
-  final String _tableName;
+class FindAllQuery implements Query, PreparedQuery {
+  final Table table;
+  final GetQuery getQuery;
+  final ITableStorage tableStorage;
+  final Duration cacheDuration;
   Future _loading;
 
-  FindAllQuery(this._getQuery, this._modelStorage, this._duration, this._tableName);
+  // cannot be const because of _loading.
+  FindAllQuery(this.table, this.getQuery, this.tableStorage, this.cacheDuration);
 
   @override
-  Future<dynamic> execute(Map<String, Object> parameters) {
+  Future<dynamic> execute([Map<String, Object> parameters, ITableStorage ts]) {
+    return prepare(tableStorage).then((_){
+      return tableStorage.findAll();
+    });
+  }
+
+  @override
+  Future prepare(ITableStorage tableStorage, [Map<String, Object> parameters]) {
     if (_loading == null) {
-      _loading = _isExpired(_modelStorage, _duration).then((isExpired) {
+      _loading = _isExpired().then((isExpired) {
         if (isExpired) {
-          return _getQuery.execute().then((List<Map> result) {
-            var resultByKey = {};
-            for (var line in result) {
-              resultByKey[line[_key.value]] = line;
-            }
-            return _modelStorage[_tableName].clean().then((_) {
-              return _modelStorage[_tableName].putMany(resultByKey);
-            });
-            return result;
-          });
+          return getQuery.prepare(tableStorage);
         } else {
-          return _modelStorage[_tableName].findAll();
+          return new Future.value();
         }
       });
     }
     return _loading.then((_) {
       _loading = null;
-      return _;
+    });
+  }
+
+  Future<bool> _isExpired() {
+    IModelStorage modelStorage = tableStorage.modelStorage;
+    return modelStorage['_cacheForTable'].find(tableStorage.name).then((Option<Map> isExpired) {
+      if (isExpired.isDefined) {
+        var date = new DateTime.fromMillisecondsSinceEpoch(isExpired.value['start']);
+        date = date.add(cacheDuration);
+        return date.isAfter(new DateTime.now());
+      } else {
+        return true;
+      }
+    });
+  }
+}
+
+class FindQuery implements Query, PreparedQuery {
+  final Table table;
+  final GetQuery getQuery;
+  final ITableStorage tableStorage;
+  final Duration cacheDuration;
+  Map<Object, Future> _loading = {};
+
+  // cannot be const because of _loading.
+  FindQuery(this.table, this.getQuery, this.tableStorage, this.cacheDuration);
+
+  @override
+  Future<dynamic> execute([Map<String, Object> parameters]) {
+    parameters = parameters != null ? parameters : {};
+    return prepare(tableStorage, parameters).then((_){
+      return tableStorage.find(parameters[_keyName]);
     });
   }
 
   @override
-  FindAllQuery clone([FindAllQuery clone]) {
-    if (clone == null) {
-      clone = new FindAllQuery(_getQuery, _modelStorage, _duration, _tableName);
-    }
-    return super.clone(clone);
-  }
-}
-
-class FindQuery extends Query {
-  final GetQuery _getQuery;
-  final IModelStorage _modelStorage;
-  final Option<Duration> _duration;
-  final String _tableName;
-  Map<Object, Future> _loading = {};
-
-  FindQuery(this._getQuery, this._modelStorage, this._duration, this._tableName);
-
-  @override
-  Future<dynamic> execute(Map<String, Object> parameters) {
-    if (_getQuery._requiredParameters.isEmpty) {
-      throw 'The query from PartialCachedTable.loadOne must contains one parameter as a key of the queried object.';
-    } else {
-      var keyName = _getQuery._requiredParameters[0];
-      var key = parameters[keyName];
-      if (_loading.containsKey(key)) {
-        _loading[key] = _isExpired(_modelStorage, _duration).then((isExpired) {
-          if (isExpired) {
-            return loadOne.execute({keyName.value: key}).then((result) {
-              return _modelStorage[_tableName].putOne(key, result).then((_) {
-                return result;
-              });
-            });
-          } else {
-            return _modelStorage[_tableName].find(key);
-          }
-        });
-      }
-      return _loading[key].then((_) {
-        _loading.remove(key);
-        return _;
+  Future prepare(ITableStorage tableStorage, [Map<String, Object> parameters]) {
+    Object key = parameters[_keyName];
+    if (_loading[key] == null) {
+      _loading[key] = _isExpired(key).then((isExpired) {
+        if (isExpired) {
+          return getQuery.prepare(tableStorage);
+        } else {
+          return new Future.value();
+        }
       });
     }
+    return _loading[key].then((_) {
+      _loading[key] = null;
+    });
   }
 
-  @override
-  FindQuery clone([FindQuery clone]) {
-    if (clone == null) {
-      clone = new FindQuery(_getQuery, _modelStorage, _duration, _tableName);
+  Future<bool> _isExpired(Object key) {
+    IModelStorage modelStorage = tableStorage.modelStorage;
+    return modelStorage['_cacheForTable'].find(tableStorage.name + key).then((Option<Map> isExpired) {
+      if (isExpired.isDefined) {
+        var date = new DateTime.fromMillisecondsSinceEpoch(isExpired.value['start']);
+        date = date.add(cacheDuration);
+        return date.isAfter(new DateTime.now());
+      } else {
+        return true;
+      }
+    });
+  }
+
+  String get _keyName {
+    if (getQuery.requiredParameters.length != 1) {
+      throw 'The query used by a partial table cache must contains one parameter.';
+    } else {
+      return getQuery.requiredParameters[0].name;
     }
-    return super.clone(clone);
   }
 }

@@ -3,6 +3,9 @@ part of kourim.storage.interface;
 /// This interface describes classes from which we can get or remove data.
 /// All functions will return [Future] to permit asynchronous operations.
 abstract class ITableStorage {
+  /// The [IModelStorage] owning this table storage.
+  IModelStorage get modelStorage;
+
   /// The name of the table storage.
   String get name;
 

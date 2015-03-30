@@ -4,8 +4,9 @@ part of kourim.storage.lib;
 class MappedTableStorage implements ITableStorage {
   Storage storage;
   String _name;
+  final MappedModelStorage modelStorage;
 
-  MappedTableStorage(this.storage, this._name);
+  MappedTableStorage(this.storage, this._name, this.modelStorage);
 
   @override
   String get name => _name;

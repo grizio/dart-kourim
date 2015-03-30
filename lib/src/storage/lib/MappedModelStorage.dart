@@ -10,7 +10,7 @@ class MappedModelStorage implements IModelStorage {
   @override
   ITableStorage operator [](String name) {
     if (!tableStorageMap.containsKey(name)) {
-      tableStorageMap[name] = new MappedTableStorage(storage, name);
+      tableStorageMap[name] = new MappedTableStorage(storage, name, this);
     }
     return tableStorageMap[name];
   }

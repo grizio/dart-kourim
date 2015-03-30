@@ -28,7 +28,7 @@ class TableArticle extends FullCachedTable<Article> {
   var date = column('date', type: constants.date);
 
   @override
-  Article fromJson(Map<String, Object> data) => new Article(data['id'], data['canonical'], data['title'], data['content'], data['date']);
+  Article fromJson(Map<String, Object> data) => new Article(data['id'], data['canonical'], data['title'], data['content'], toDate(data['date']));
 
   @override
   Map<String, Object> toJson(Article article) => {
@@ -36,7 +36,7 @@ class TableArticle extends FullCachedTable<Article> {
     'canonical': article.canonical,
     'title': article.title,
     'content': article.title,
-    'date': article.date
+    'date': fromDate(article.date)
   };
 
   TableArticle(@indexedDb modelStorage): super(modelStorage);
@@ -48,7 +48,7 @@ class TableArticle extends FullCachedTable<Article> {
   var edit = put('/article/{id}').requiring(title, content);
   var remove = delete('/article/{id}');
 
-  var findByTitle = local.by(title);
+  var findByTitle = local.constraint(title.value);
   var searchByTitle = local.constraint(title.like);
   var search = searchByTitle.constraint(content.like); // immutable, so we can combine queries
 }

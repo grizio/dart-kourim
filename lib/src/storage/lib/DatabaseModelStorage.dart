@@ -43,7 +43,7 @@ class DatabaseModelStorage implements IDatabase {
       throw 'An access to IndexedDB was made before opening it. Operation aborted';
     } else {
       if (!tableStorageMap.containsKey(name)) {
-        tableStorageMap[name] = new DatabaseTableStorage(name, db);
+        tableStorageMap[name] = new DatabaseTableStorage(name, db, this);
       }
       return tableStorageMap[name];
     }

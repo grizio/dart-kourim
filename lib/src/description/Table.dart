@@ -2,9 +2,9 @@ part of kourim.description;
 
 abstract class Table<A> {
   final String _tableName;
-  final Map<String, Field> _fields = {};
-  final Option<Field> _key = None;
-  final List<Query> _queries = [];
+  Map<String, Field> _fields = {};
+  Field _key = null;
+  List<Query> _queries = [];
 
   Table(this._tableName);
 
@@ -18,11 +18,11 @@ abstract class Table<A> {
   }
 
   Field key(String name, {String type='Object'}) {
-    if (_key.isDefined) {
+    if (_key != null) {
       throw 'A table can have only one key.';
     }
     var field = new Field(name, type, true, true, this);
-    _key = Some(field);
+    _key = field;
     return field;
   }
 

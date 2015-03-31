@@ -81,6 +81,7 @@ class GetQuery implements Query, PreparedQuery {
     });
   }
 
+  /// Pull data from remote host.
   Future _pull(ITableStorage tableStorage, Map<String, Object> parameters) {
     var url = remote;
     for (var requiredParameter in requiredParameters) {
@@ -96,9 +97,39 @@ class GetQuery implements Query, PreparedQuery {
     request.uri = url;
     request.method = 'GET';
     request.parseResult = true;
-    return request.send().then((_){
-      //TODO
+    return request.send().then((values) {
+      if (nextQuery.isDefined) {
+        return _processNextQuery(tableStorage, values);
+      } else {
+        return _save(tableStorage, values);
+      }
     });
+  }
+
+  /// Executes the next query.
+  Future _processNextQuery(ITableStorage tableStorage, dynamic values) {
+    if (values is List) {
+      return Future.wait((values as List).map((_) => _processNextQuery(tableStorage, _)));
+    } else if (values is Map) {
+      return nextQuery.value.prepare(tableStorage, values);
+    } else {
+      return nextQuery.value.prepare(tableStorage, {nextQuery.value.requiredParameters.first: values});
+    }
+  }
+
+  /// Save the result of given query into current table storage.
+  Future _save(ITableStorage tableStorage, dynamic values) {
+    if (values is List) {
+      var mapValues = <Object, Map<String, Object>>{};
+      (values as List).forEach((line){
+        var key = line[table._key.name];
+        mapValues[key] = line;
+      });
+      return tableStorage.putMany(mapValues);
+    } else {
+      var key = values[table._key.name];
+      return tableStorage.putOne(key, values);
+    }
   }
 
   Future<bool> _isExpired(Map<String, Object> parameters) {

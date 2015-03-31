@@ -1,9 +1,5 @@
 part of kourim.storage.interface;
 
-class internal {
-  const internal();
-}
-
 @Injectable()
 class DatabaseApplicationName {
   final String name;

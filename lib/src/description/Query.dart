@@ -1,9 +1,5 @@
 part of kourim.description;
 
-/*
-
-*/
-
 abstract class Query {
   /// Executes the current Query with given [parameters].
   /// If the query is a read query (cf. [GetQuery], [FindAllQuery] and [FindQuery]),
@@ -31,19 +27,98 @@ class GetQuery implements Query, PreparedQuery {
   final Injector injector;
   final Table table;
   final String remote;
-  final Option<ITableStorage> tableStorage;
+  final Option<IModelStorage> modelStorage;
   final Option<Duration> cacheDuration;
-  final Option<GetQuery> _then;
+  final Option<GetQuery> nextQuery;
   final List<Field> requiredParameters;
+  Map<String, Future> _loading = {}; // Avoids calling the same url multiple time on the same moment.
 
-  GetQuery(this.injector, this.table, this.remote, this.tableStorage, this.cacheDuration, this._then, this.requiredParameters);
+  GetQuery(this.injector, this.table, this.remote, this.modelStorage, this.cacheDuration, this.nextQuery, this.requiredParameters);
 
-  GetQuery withCache(ITableStorage tableStorage, [Duration duration=null]) {
-    return new GetQuery(injector, table, remote, Some(tableStorage), Some(cacheDuration), _then, requiredParameters);
+  GetQuery withCache(Type destination, [Duration duration=null]) {
+    var modelStorage = injector.get(IModelStorage, destination);
+    return new GetQuery(injector, table, remote, Some(modelStorage), Some(duration), nextQuery, requiredParameters);
   }
 
   GetQuery then(GetQuery getQuery) {
-    return new GetQuery(injector, table, remote, tableStorage, cacheDuration, Some(getQuery), requiredParameters);
+    return new GetQuery(injector, table, remote, modelStorage, cacheDuration, Some(getQuery), requiredParameters);
+  }
+
+  @override
+  Future<dynamic> execute([Map<String, Object> parameters]) {
+    parameters = mapUtilities.notNull(parameters);
+    if (modelStorage.isDefined) {
+      var tableStorage = modelStorage.value[this.table._tableName + JSON.encode(parameters)];
+      return prepare(tableStorage).then((_){
+        return tableStorage.findAll();
+      });
+    } else {
+      var modelStorage = injector.get(IModelStorage, session) as IModelStorage;
+      var tableStorage = modelStorage[this.table._tableName + JSON.encode(parameters) + new Random().nextInt(10000).toString()];
+      return prepare(tableStorage).then((_){
+        var result = tableStorage.findAll();
+        tableStorage.clean();
+        return result;
+      });
+    }
+  }
+
+  @override
+  Future prepare(ITableStorage tableStorage, [Map<String, Object> parameters]) {
+    parameters = mapUtilities.notNull(parameters);
+    var key = table._tableName + JSON.encode(parameters);
+    if (_loading[key] == null) {
+      _loading[key] = _isExpired(parameters).then((isExpired){
+        if (isExpired) {
+          return _pull(tableStorage, parameters);
+        } else {
+          return new Future.value();
+        }
+      });
+    }
+    return _loading[key].then((_) {
+      _loading[key] = null;
+    });
+  }
+
+  Future _pull(ITableStorage tableStorage, Map<String, Object> parameters) {
+    var url = remote;
+    for (var requiredParameter in requiredParameters) {
+      if (!parameters.containsKey(requiredParameter.name)) {
+        throw 'A required parameter for the query was not found (local query from table ${table._tableName}})';
+      } else {
+        url = url.replaceAll('{${requiredParameter.name}}', parameters[requiredParameter.name]);
+      }
+    }
+
+    var requestCreation = injector.get(IRequestCreation);
+    var request = requestCreation() as IRequest;
+    request.uri = url;
+    request.method = 'GET';
+    request.parseResult = true;
+    return request.send().then((_){
+      //TODO
+    });
+  }
+
+  Future<bool> _isExpired(Map<String, Object> parameters) {
+    if (modelStorage.isDefined) {
+      return modelStorage.value['_cacheForQueries'].find(table._tableName + '.' + remote + JSON.encode(parameters)).then((Option<Map> cacheInfo) {
+        if (cacheInfo.isDefined) {
+          if (cacheDuration.isDefined) {
+            var date = new DateTime.fromMillisecondsSinceEpoch(cacheInfo.value['start']);
+            date = date.add(cacheDuration.value);
+            return date.isAfter(new DateTime.now());
+          } else {
+            return false;
+          }
+        } else {
+          return true;
+        }
+      });
+    } else {
+      return new Future.value(true);
+    }
   }
 }
 
@@ -246,7 +321,7 @@ class FindAllQuery implements Query, PreparedQuery {
   final GetQuery getQuery;
   final ITableStorage tableStorage;
   final Option<Duration> cacheDuration;
-  Future _loading;
+  Future _loading; // Avoids calling the same url multiple time on the same moment.
 
   // cannot be const because of _loading.
   FindAllQuery(this.injector, this.table, this.getQuery, this.tableStorage, this.cacheDuration);
@@ -276,10 +351,10 @@ class FindAllQuery implements Query, PreparedQuery {
 
   Future<bool> _isExpired() {
     IModelStorage modelStorage = tableStorage.modelStorage;
-    return modelStorage['_cacheForTable'].find(tableStorage.name).then((Option<Map> isExpired) {
-      if (isExpired.isDefined) {
+    return modelStorage['_cacheForTable'].find(tableStorage.name).then((Option<Map> cacheInfo) {
+      if (cacheInfo.isDefined) {
         if (cacheDuration.isDefined) {
-          var date = new DateTime.fromMillisecondsSinceEpoch(isExpired.value['start']);
+          var date = new DateTime.fromMillisecondsSinceEpoch(cacheInfo.value['start']);
           date = date.add(cacheDuration.value);
           return date.isAfter(new DateTime.now());
         } else {
@@ -298,7 +373,7 @@ class FindQuery implements Query, PreparedQuery {
   final GetQuery getQuery;
   final ITableStorage tableStorage;
   final Option<Duration> cacheDuration;
-  Map<Object, Future> _loading = {};
+  Map<Object, Future> _loading = {}; // Avoids calling the same url multiple time on the same moment.
 
   // cannot be const because of _loading.
   FindQuery(this.injector, this.table, this.getQuery, this.tableStorage, this.cacheDuration);
@@ -330,10 +405,10 @@ class FindQuery implements Query, PreparedQuery {
 
   Future<bool> _isExpired(Object key) {
     IModelStorage modelStorage = tableStorage.modelStorage;
-    return modelStorage['_cacheForTable'].find(tableStorage.name + key).then((Option<Map> isExpired) {
-      if (isExpired.isDefined) {
+    return modelStorage['_cacheForTable'].find(tableStorage.name + key).then((Option<Map> cacheInfo) {
+      if (cacheInfo.isDefined) {
         if (cacheDuration.isDefined) {
-          var date = new DateTime.fromMillisecondsSinceEpoch(isExpired.value['start']);
+          var date = new DateTime.fromMillisecondsSinceEpoch(cacheInfo.value['start']);
           date = date.add(cacheDuration.value);
           return date.isAfter(new DateTime.now());
         } else {

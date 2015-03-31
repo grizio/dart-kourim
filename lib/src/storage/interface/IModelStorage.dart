@@ -9,6 +9,9 @@ class session {
 class indexedDb {
   const indexedDb();
 }
+class internal {
+  const internal();
+}
 
 /// This interface describes classes which possess a set of [ITableStorage] used to save data on local storage.
 abstract class IModelStorage {

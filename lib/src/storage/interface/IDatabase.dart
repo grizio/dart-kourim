@@ -1,15 +1,12 @@
 part of kourim.storage.interface;
 
-@Injectable()
 class DatabaseApplicationName {
   final String name;
   DatabaseApplicationName(this.name);
 }
 
-/// This interface describes classes which provide some database operations.
-abstract class IDatabase extends IModelStorage {
-  /// The name of the database.
-  String get name;
+abstract class DatabaseChangeManager {
+  Map<int, List<OnDatabaseChange>> changes = {};
 
   /// Before [open] is called, the developer can prepare database changes.
   /// This method adds a change in terms of given [version].
@@ -18,8 +15,16 @@ abstract class IDatabase extends IModelStorage {
   ///     onChange(1, (event) => ...)
   ///
   /// See [dart.dom.indexed_db.IdbFactory#open] and JavaScript IndexedDB specifications for more information on database changes.
-  void onChange(int version, OnDatabaseChange callback);
+  void onChange(int version, OnDatabaseChange callback) {
+    if (!changes.containsKey(version)) {
+      changes[version] = [];
+    }
+    changes[version].add(callback);
+  }
+}
 
+/// This interface describes classes which provide some database operations.
+abstract class IDatabase extends IModelStorage {
   /// Opens the database.
   /// This will include the whole changes requested by [onChange].
   ///

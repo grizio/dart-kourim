@@ -1,4 +1,25 @@
-part of kourim.query.lib;
+part of kourim.core;
+
+/// Defines classes which can make HTTP request with some configurations and return its result.
+abstract class IRequest {
+  /// URI of the request.
+  /// This URI cannot be a pattern url because it will be used as is.
+  String uri;
+
+  /// Method of the request, should be a valid HTTP method.
+  String method;
+
+  /// Parameters to send to the request.
+  /// These parameters is only the body parameter.
+  Map<String, Object> parameters;
+
+  /// If true, the result will be parsed into JSON before returning to caller.
+  /// Otherwise, the request will not return a result.
+  bool parseResult;
+
+  /// Sends the HTTP request and returns its result.
+  Future<dynamic> send();
+}
 
 /// This class is the default implementation of [IRequest] and is used in production mode.
 class Request extends IRequest {
@@ -39,7 +60,7 @@ class Request extends IRequest {
 
     xhr.onLoad.listen((e) {
       if ((xhr.status >= 200 && xhr.status < 300) ||
-          xhr.status == 0 || xhr.status == 304) {
+      xhr.status == 0 || xhr.status == 304) {
         if (parseResult) {
           completer.complete(JSON.decode(xhr.responseText));
         } else {

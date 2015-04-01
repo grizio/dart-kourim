@@ -1,16 +1,16 @@
 part of kourim.storage.interface;
 
-class local {
-  const local();
+class Local {
+  const Local();
 }
-class session {
-  const session();
+class Session {
+  const Session();
 }
-class indexedDb {
-  const indexedDb();
+class IndexedDb {
+  const IndexedDb();
 }
-class internal {
-  const internal();
+class Internal {
+  const Internal();
 }
 
 /// This interface describes classes which possess a set of [ITableStorage] used to save data on local storage.

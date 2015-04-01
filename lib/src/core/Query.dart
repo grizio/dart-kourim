@@ -1,5 +1,6 @@
-part of kourim.description;
+part of kourim.core;
 
+/// Describes a classic query
 abstract class Query {
   /// Executes the current Query with given [parameters].
   /// If the query is a read query (cf. [GetQuery], [FindAllQuery] and [FindQuery]),
@@ -8,6 +9,7 @@ abstract class Query {
   Future<dynamic> execute([Map<String, Object> parameters]);
 }
 
+/// Describes a query which can be prepared.
 abstract class PreparedQuery {
   /// Prepares the query by caching the result into given [tableStorage].
   /// This methods is mainly used by the system to get data for [FullCachedTable] or [PartialCachedTable].
@@ -17,12 +19,7 @@ abstract class PreparedQuery {
   Future prepare(ITableStorage tableStorage, [Map<String, Object> parameters]);
 }
 
-abstract class Constraint {
-  String get key;
-  bool get isRequired;
-  bool validate(Map<String, Object> data, Object value);
-}
-
+/// Descriptor for a remote `GET` query.
 class GetQuery implements Query, PreparedQuery {
   final Injector injector;
   final Table table;
@@ -31,15 +28,18 @@ class GetQuery implements Query, PreparedQuery {
   final Option<Duration> cacheDuration;
   final Option<GetQuery> nextQuery;
   final List<Field> requiredParameters;
-  Map<String, Future> _loading = {}; // Avoids calling the same url multiple time on the same moment.
+  Map<String, Future> _loading = {}; // Avoids calling the same url multiple times on the same moment.
 
   GetQuery(this.injector, this.table, this.remote, this.modelStorage, this.cacheDuration, this.nextQuery, this.requiredParameters);
 
+  /// Adds a cache management to save the result of given query.
+  /// If the cache is already set, it will be overridden.
   GetQuery withCache(Type destination, [Duration duration=null]) {
     var modelStorage = injector.get(IModelStorage, destination);
     return new GetQuery(injector, table, remote, Some(modelStorage), Some(duration), nextQuery, requiredParameters);
   }
 
+  /// Indicates that the given query must call another query after getting its result.
   GetQuery then(GetQuery getQuery) {
     return new GetQuery(injector, table, remote, modelStorage, cacheDuration, Some(getQuery), requiredParameters);
   }
@@ -53,7 +53,7 @@ class GetQuery implements Query, PreparedQuery {
         return tableStorage.findAll();
       });
     } else {
-      var modelStorage = injector.get(IModelStorage, session) as IModelStorage;
+      var modelStorage = injector.get(IModelStorage, Session) as IModelStorage;
       var tableStorage = modelStorage[this.table._tableName + JSON.encode(parameters) + new Random().nextInt(10000).toString()];
       return prepare(tableStorage).then((_){
         var result = tableStorage.findAll();
@@ -81,7 +81,7 @@ class GetQuery implements Query, PreparedQuery {
     });
   }
 
-  /// Pull data from remote host.
+  /// Pulls data from remote host.
   Future _pull(ITableStorage tableStorage, Map<String, Object> parameters) {
     var url = remote;
     for (var requiredParameter in requiredParameters) {
@@ -94,7 +94,8 @@ class GetQuery implements Query, PreparedQuery {
 
     var requestCreation = injector.get(IRequestCreation);
     var request = requestCreation() as IRequest;
-    request.uri = url;
+    var host = (injector.get(ApplicationRemoteHost) as ApplicationRemoteHost).host;
+    request.uri = host + (host.endsWith('/') ? '' : '/') + url;
     request.method = 'GET';
     request.parseResult = true;
     return request.send().then((values) {
@@ -132,6 +133,7 @@ class GetQuery implements Query, PreparedQuery {
     }
   }
 
+  /// Checks if the cache (if any) for this query and given [parameters] is expired.
   Future<bool> _isExpired(Map<String, Object> parameters) {
     if (modelStorage.isDefined) {
       return modelStorage.value['_cacheForQueries'].find(table._tableName + '.' + remote + JSON.encode(parameters)).then((Option<Map> cacheInfo) {
@@ -153,6 +155,7 @@ class GetQuery implements Query, PreparedQuery {
   }
 }
 
+/// Descriptor for a remote `POST` query.
 class PostQuery implements Query {
   final Injector injector;
   final Table table;
@@ -162,6 +165,9 @@ class PostQuery implements Query {
 
   PostQuery(this.injector, this.table, this.remote, this.requiredParameters, this.optionalParameters);
 
+  /// Indicates that the given query must require the given fields.
+  /// Warning: The system will check if the value was provided, not if it is not null.
+  /// Provide a single [Field] element or a [List<Field>] (not as a rest parameters due to langage limitations).
   PostQuery requiring(dynamic fields) {
     var newRequiredParameters = <Field>[];
     newRequiredParameters.addAll(requiredParameters);
@@ -173,6 +179,9 @@ class PostQuery implements Query {
     return new PostQuery(injector, table, remote, newRequiredParameters, optionalParameters);
   }
 
+  /// Indicates that the given query can add the given fields, but are not required.
+  /// Warning: The query checks if the value was provided, not if it is not null.
+  /// Provide a single [Field] element or a [List<Field>] (not as a rest parameters due to langage limitations).
   PostQuery optional(dynamic fields) {
     var newOptionalParameters = <Field>[];
     newOptionalParameters.addAll(optionalParameters);
@@ -217,6 +226,7 @@ class PostQuery implements Query {
   }
 }
 
+/// Descriptor for a remote `PUT` query.
 class PutQuery implements Query {
   final Injector injector;
   final Table table;
@@ -226,6 +236,9 @@ class PutQuery implements Query {
 
   PutQuery(this.injector, this.table, this.remote, this.requiredParameters, this.optionalParameters);
 
+  /// Indicates that the given query must require the given fields.
+  /// Warning: The system will check if the value was provided, not if it is not null.
+  /// Provide a single [Field] element or a [List<Field>] (not as a rest parameters due to langage limitations).
   PutQuery requiring(dynamic fields) {
     var newRequiredParameters = <Field>[];
     newRequiredParameters.addAll(requiredParameters);
@@ -237,6 +250,9 @@ class PutQuery implements Query {
     return new PutQuery(injector, table, remote, newRequiredParameters, optionalParameters);
   }
 
+  /// Indicates that the given query can add the given fields, but are not required.
+  /// Warning: The query checks if the value was provided, not if it is not null.
+  /// Provide a single [Field] element or a [List<Field>] (not as a rest parameters due to langage limitations).
   PutQuery optional(dynamic fields) {
     var newOptionalParameters = <Field>[];
     newOptionalParameters.addAll(optionalParameters);
@@ -281,6 +297,7 @@ class PutQuery implements Query {
   }
 }
 
+/// Descriptor for a remote `DELETE` query.
 class DeleteQuery implements Query {
   final Injector injector;
   final Table table;
@@ -309,19 +326,21 @@ class DeleteQuery implements Query {
   }
 }
 
+/// Descriptor for a local query (when into a [FullCachedTable]).
 class LocalQuery implements Query {
   final Injector injector;
   final FullCachedTable table;
-  final String remote;
   final ITableStorage tableStorage;
   final List<Constraint> constraints;
 
-  LocalQuery(this.injector, this.table, this.remote, this.tableStorage, this.constraints);
+  LocalQuery(this.injector, this.table, this.tableStorage, this.constraints);
 
+  /// Indicates that the system must return only rows verifying given [constraint].
+  /// See [Constraint] for more explanations.
   LocalQuery verifying(Constraint constraint) {
     var newConstraints = [];
     newConstraints.addAll(constraints);
-    return new LocalQuery(injector, table, remote, tableStorage, newConstraints);
+    return new LocalQuery(injector, table, tableStorage, newConstraints);
   }
 
   @override
@@ -346,15 +365,15 @@ class LocalQuery implements Query {
   }
 }
 
+/// Descriptor for the special query [FullCachedTable.findAll].
 class FindAllQuery implements Query, PreparedQuery {
   final Injector injector;
   final Table table;
   final GetQuery getQuery;
   final ITableStorage tableStorage;
   final Option<Duration> cacheDuration;
-  Future _loading; // Avoids calling the same url multiple time on the same moment.
+  Future _loading; // Avoids calling the same url multiple times on the same moment.
 
-  // cannot be const because of _loading.
   FindAllQuery(this.injector, this.table, this.getQuery, this.tableStorage, this.cacheDuration);
 
   @override
@@ -380,6 +399,7 @@ class FindAllQuery implements Query, PreparedQuery {
     });
   }
 
+  /// Checks if the cache (if any) for this query table is expired.
   Future<bool> _isExpired() {
     IModelStorage modelStorage = tableStorage.modelStorage;
     return modelStorage['_cacheForTable'].find(tableStorage.name).then((Option<Map> cacheInfo) {
@@ -398,15 +418,15 @@ class FindAllQuery implements Query, PreparedQuery {
   }
 }
 
+/// Descriptor for the special query [PartialCachedTable.find].
 class FindQuery implements Query, PreparedQuery {
   final Injector injector;
   final Table table;
   final GetQuery getQuery;
   final ITableStorage tableStorage;
   final Option<Duration> cacheDuration;
-  Map<Object, Future> _loading = {}; // Avoids calling the same url multiple time on the same moment.
+  Map<Object, Future> _loading = {}; // Avoids calling the same url multiple times on the same moment.
 
-  // cannot be const because of _loading.
   FindQuery(this.injector, this.table, this.getQuery, this.tableStorage, this.cacheDuration);
 
   @override
@@ -434,6 +454,7 @@ class FindQuery implements Query, PreparedQuery {
     });
   }
 
+  /// Checks if the cache (if any) for this query table and givne key is expired.
   Future<bool> _isExpired(Object key) {
     IModelStorage modelStorage = tableStorage.modelStorage;
     return modelStorage['_cacheForTable'].find(tableStorage.name + key).then((Option<Map> cacheInfo) {
@@ -451,6 +472,7 @@ class FindQuery implements Query, PreparedQuery {
     });
   }
 
+  /// Returns the key name of the query to call it with key parameter.
   String get _keyName {
     if (getQuery.requiredParameters.length != 1) {
       throw 'The query used by a partial table cache must contains one parameter.';

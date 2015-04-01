@@ -1,29 +1,24 @@
 part of kourim.storage.lib;
 
 /// This class is planned for the usage of [IndexedDB].
+@Injectable()
 class DatabaseModelStorage implements IDatabase {
-  final String name;
   Future<idb.Database> db;
-  Map<int, List<OnDatabaseChange>> changes = {};
 
   Map<String, DatabaseTableStorage> tableStorageMap = {};
 
-  DatabaseModelStorage(this.name);
+  final DatabaseApplicationName databaseApplicationName;
+  final DatabaseChangeManager databaseChangeManager;
 
-  @override
-  void onChange(int version, OnDatabaseChange callback) {
-    if (!changes.containsKey(version)) {
-      changes[version] = [];
-    }
-    changes[version].add(callback);
-  }
+  DatabaseModelStorage(this.databaseApplicationName, this.databaseChangeManager);
 
   @override
   Future open() {
     if (db == null) {
       // Avoids error when multiple calls on this method
+      var changes = databaseChangeManager.changes;
       db = window.indexedDB.open(
-          name,
+          databaseApplicationName.name,
           version: integerUtilities.max(1, integerUtilities.maxFromList(changes.keys)),
           onUpgradeNeeded: (idb.VersionChangeEvent event) {
             var db = (event.target as idb.Request).result;
@@ -34,7 +29,7 @@ class DatabaseModelStorage implements IDatabase {
             });
           });
     }
-    return db.then((_) => null); // Avoids to return the internal _db.
+    return db.then((_) => null); // Avoids to return the internal db.
   }
 
   @override

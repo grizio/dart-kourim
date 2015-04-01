@@ -6,6 +6,9 @@ class DatabaseTableStorage implements ITableStorage {
   final Future<idb.Database> db;
   final DatabaseModelStorage modelStorage;
 
+  const readonly = 'readonly';
+  const readwrite = 'readwrite';
+
   DatabaseTableStorage(this._name, this.db, this.modelStorage);
 
   @override
@@ -14,8 +17,8 @@ class DatabaseTableStorage implements ITableStorage {
   @override
   Future<Option<Map<String, Object>>> find(Object key) {
     return db.then((db){
-      var transaction = db.transaction(_name, internalConstants.readonly);
-      var store = transaction.objectStore(_name);
+      var transaction = db.transaction(name, readonly);
+      var store = transaction.objectStore(name);
       return store.getObject(key).then((value) => new Option(value));
     });
   }
@@ -23,8 +26,8 @@ class DatabaseTableStorage implements ITableStorage {
   @override
   Future<Iterable<Map<String, Object>>> findAll() {
     return db.then((db){
-      var transaction = db.transaction(_name, internalConstants.readonly);
-      var store = transaction.objectStore(_name);
+      var transaction = db.transaction(name, readonly);
+      var store = transaction.objectStore(name);
       return store.openCursor(autoAdvance: true).asBroadcastStream().map((event) => event.value).toList();
     });
   }
@@ -58,8 +61,8 @@ class DatabaseTableStorage implements ITableStorage {
   @override
   Future<Option<Map<String, Object>>> findOneWhen(Constraint constraint) {
     return db.then((db){
-      var transaction = db.transaction(_name, internalConstants.readonly);
-      var store = transaction.objectStore(_name);
+      var transaction = db.transaction(name, readonly);
+      var store = transaction.objectStore(name);
       return store.openCursor(autoAdvance: true).firstWhere((e) => constraint(e.value)).then((idb.CursorWithValue cwv) => cwv.value);
     });
   }
@@ -67,8 +70,8 @@ class DatabaseTableStorage implements ITableStorage {
   @override
   Future<Iterable<Map<String, Object>>> findManyWhen(Constraint constraint) {
     return db.then((db){
-      var transaction = db.transaction(_name, internalConstants.readonly);
-      var store = transaction.objectStore(_name);
+      var transaction = db.transaction(name, readonly);
+      var store = transaction.objectStore(name);
       return store.openCursor(autoAdvance: true).where((e) => constraint(e.value)).map((idb.CursorWithValue cwv) => cwv.value).toList();
     });
   }
@@ -102,8 +105,8 @@ class DatabaseTableStorage implements ITableStorage {
   @override
   Future putOne(Object key, Map<String, Object> value) {
     return db.then((db){
-      var transaction = db.transaction(_name, internalConstants.readwrite);
-      var store = transaction.objectStore(_name);
+      var transaction = db.transaction(name, readwrite);
+      var store = transaction.objectStore(name);
       if (store.keyPath == null) {
         return store.put(value, key);
       } else {
@@ -115,8 +118,8 @@ class DatabaseTableStorage implements ITableStorage {
   @override
   Future putMany(Map<Object, Map<String, Object>> values) {
     return db.then((db){
-      var transaction = db.transaction(_name, internalConstants.readwrite);
-      var store = transaction.objectStore(_name);
+      var transaction = db.transaction(name, readwrite);
+      var store = transaction.objectStore(name);
       return Future.wait(values.keys.map((key){
         if (store.keyPath == null) {
           return store.put(values[key], key);
@@ -130,8 +133,8 @@ class DatabaseTableStorage implements ITableStorage {
   @override
   Future foreach(ForeachValues process) {
     return db.then((db){
-      var transaction = db.transaction(_name, internalConstants.readonly);
-      var store = transaction.objectStore(_name);
+      var transaction = db.transaction(name, readonly);
+      var store = transaction.objectStore(name);
       return store.openCursor(autoAdvance: true).forEach((e) => process(e.value));
     });
   }
@@ -139,8 +142,8 @@ class DatabaseTableStorage implements ITableStorage {
   @override
   Future<Iterable<Object>> map(MapValues process) {
     return db.then((db){
-      var transaction = db.transaction(_name, internalConstants.readonly);
-      var store = transaction.objectStore(_name);
+      var transaction = db.transaction(name, readonly);
+      var store = transaction.objectStore(name);
       return store.openCursor(autoAdvance: true).map((e) => process(e.value)).toList();
     });
   }
@@ -148,8 +151,8 @@ class DatabaseTableStorage implements ITableStorage {
   @override
   Future remove(Object key) {
     return db.then((db){
-      var transaction = db.transaction(_name, internalConstants.readwrite);
-      var store = transaction.objectStore(_name);
+      var transaction = db.transaction(name, readwrite);
+      var store = transaction.objectStore(name);
       return store.delete(key);
     });
   }
@@ -170,8 +173,8 @@ class DatabaseTableStorage implements ITableStorage {
   @override
   Future removeWhen(Constraint constraint) {
     return db.then((db){
-      var transaction = db.transaction(_name, internalConstants.readwrite);
-      var store = transaction.objectStore(_name);
+      var transaction = db.transaction(name, readwrite);
+      var store = transaction.objectStore(name);
       return store.openCursor(autoAdvance: true).forEach((e){
         if (constraint(e.value)) {
           e.delete();
@@ -183,8 +186,8 @@ class DatabaseTableStorage implements ITableStorage {
   @override
   Future clean() {
     return db.then((db){
-      var transaction = db.transaction(_name, internalConstants.readwrite);
-      var store = transaction.objectStore(_name);
+      var transaction = db.transaction(name, readwrite);
+      var store = transaction.objectStore(name);
       store.clear();
     });
   }

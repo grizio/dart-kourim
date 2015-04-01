@@ -2,14 +2,11 @@ part of kourim.storage.lib;
 
 /// This class is planned for the usage of [window.sessionStorage] and [window.localStorage].
 class MappedTableStorage implements ITableStorage {
-  Storage storage;
-  String _name;
+  final Storage storage;
+  final String name;
   final MappedModelStorage modelStorage;
 
-  MappedTableStorage(this.storage, this._name, this.modelStorage);
-
-  @override
-  String get name => _name;
+  MappedTableStorage(this.storage, this.name, this.modelStorage);
 
   @override
   Future<Option<Map<String, Object>>> find(Object key) {
@@ -198,8 +195,8 @@ class MappedTableStorage implements ITableStorage {
   }
 
   Map<Object, Map<String, Object>> load() {
-    if (storage.containsKey(config.databaseName + '_' + name)) {
-      return JSON.decode(storage[config.databaseName + '_' + name]);
+    if (storage.containsKey(modelStorage.databaseApplicationName.name + '_' + name)) {
+      return JSON.decode(storage[modelStorage.databaseApplicationName.name + '_' + name]);
     } else {
       return {};
     }
@@ -211,6 +208,6 @@ class MappedTableStorage implements ITableStorage {
     data.forEach((key, value){
       encodedData[key.toString()] = value;
     });
-    storage[config.databaseName + '_' + name] = JSON.encode(encodedData);
+    storage[modelStorage.databaseApplicationName.name + '_' + name] = JSON.encode(encodedData);
   }
 }

@@ -85,7 +85,7 @@ class GetQuery implements Query, PreparedQuery {
       });
     }).then((result){
       temporaryTableStorage.clean();
-      return result;
+      return result.map((_) => table.fromJson(_)).toList();
     });
   }
 
@@ -390,7 +390,7 @@ class LocalQuery implements Query {
         }
         return true;
       });
-    });
+    }).then((result) => result.map((_) => table.fromJson(_)).toList());
   }
 }
 
@@ -409,7 +409,7 @@ class FindAllQuery implements Query, PreparedQuery {
   Future<dynamic> execute([Map<String, Object> parameters, ITableStorage ts]) {
     return prepare(tableStorage).then((_){
       return tableStorage.findAll();
-    });
+    }).then((result) => result.map((_) => table.fromJson(_)).toList());
   }
 
   @override
@@ -466,7 +466,7 @@ class FindQuery implements Query, PreparedQuery {
     parameters = parameters != null ? parameters : {};
     return prepare(tableStorage, parameters).then((_){
       return tableStorage.find(parameters[_keyName]);
-    });
+    }).then((result) => result.map((_) => table.fromJson(_)).toList());
   }
 
   @override

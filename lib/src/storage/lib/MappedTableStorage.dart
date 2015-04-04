@@ -12,8 +12,8 @@ class MappedTableStorage implements ITableStorage {
   Future<Option<Map<String, Object>>> find(Object key) {
     return new Future((){
       var rows = load();
-      if (rows.containsKey(key)) {
-        return Some(rows[key]);
+      if (rows.containsKey(key.toString())) {
+        return Some(rows[key.toString()]);
       } else {
         return None;
       }

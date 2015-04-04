@@ -6,11 +6,11 @@ abstract class Query {
   /// If the query is a read query (cf. [GetQuery], [FindAllQuery] and [FindQuery]),
   /// then the result will be a list of lines matching the query.
   /// Otherwise, it will be null (the [Future] is used to determine the end of the query).
-  Future<dynamic> execute([Map<String, Object> parameters]);
+  Future<dynamic> execute([Map<String, Object> parameters, bool asMap=false]);
 }
 
 /// Describes a query which can be prepared.
-abstract class PreparedQuery {
+abstract class PreparedQuery implements Query {
   /// Prepares the query by caching the result into given [tableStorage].
   /// This methods is mainly used by the system to get data for [FullCachedTable] or [PartialCachedTable].
   ///
@@ -19,38 +19,80 @@ abstract class PreparedQuery {
   Future<bool> prepare(ITableStorage tableStorage, [Map<String, Object> parameters]);
 }
 
-abstract class AcceptedAsNextQuery extends PreparedQuery {
+/// Interface indicating the query is an accepted query for chained query.
+abstract class AcceptedAsChainedQuery implements PreparedQuery {
   /// List of parameters which are required to perform the execution.
   List<Field> get requiredParameters;
 }
 
+/// Defines a join.
+class JoinInfo {
+  final Field source;
+  final Field destination;
+  final AcceptedAsChainedQuery join;
+
+  JoinInfo(this.source, this.destination, this.join);
+}
+
+/// Used by queries containing joins.
+abstract class QueryWithJoins<A extends Query> {
+  List<JoinInfo> get joins;
+
+  A join(Field source, Field destination, AcceptedAsChainedQuery join);
+
+  Future processJoins(Map<String, Object> data) {
+    var futures = [];
+    joins.forEach((joinInfo){
+      var source = data[joinInfo.source.name];
+      if (source is List) {
+        var subFutures = [];
+        for (var sourceOne in source) {
+          subFutures.add(joinInfo.join.execute({joinInfo.join.requiredParameters.first.name: sourceOne}, true));
+        }
+        futures.add(Future.wait(subFutures).then((_) => data[joinInfo.destination.name] = _));
+      } else {
+        futures.add(joinInfo.join.execute({joinInfo.join.requiredParameters.first.name: source}, true).then((_) => data[joinInfo.destination.name] = _));
+      }
+    });
+    return Future.wait(futures);
+  }
+}
+
 /// Descriptor for a remote `GET` query.
-class GetQuery implements Query, PreparedQuery, AcceptedAsNextQuery {
+class GetQuery extends QueryWithJoins<GetQuery> implements Query, PreparedQuery, AcceptedAsChainedQuery {
   final Injector injector;
   final Table table;
   final String remote;
   final Option<IModelStorage> modelStorage;
   final Option<Duration> cacheDuration;
-  final Option<AcceptedAsNextQuery> nextQuery;
+  final Option<AcceptedAsChainedQuery> nextQuery;
   final List<Field> requiredParameters;
+  final List<JoinInfo> joins;
   Map<String, Future> _loading = {}; // Avoids calling the same url multiple times on the same moment.
 
-  GetQuery(this.injector, this.table, this.remote, this.modelStorage, this.cacheDuration, this.nextQuery, this.requiredParameters);
+  GetQuery(this.injector, this.table, this.remote, this.modelStorage, this.cacheDuration, this.nextQuery, this.requiredParameters, this.joins);
 
   /// Adds a cache management to save the result of given query.
   /// If the cache is already set, it will be overridden.
   GetQuery withCache(Type destination, [Duration duration=null]) {
     var modelStorage = injector.get(IModelStorage, destination);
-    return new GetQuery(injector, table, remote, Some(modelStorage), Some(duration), nextQuery, requiredParameters);
+    return new GetQuery(injector, table, remote, Some(modelStorage), Some(duration), nextQuery, requiredParameters, joins);
   }
 
   /// Indicates that the given query must call another query after getting its result.
-  GetQuery then(AcceptedAsNextQuery nextQuery) {
-    return new GetQuery(injector, table, remote, modelStorage, cacheDuration, Some(nextQuery), requiredParameters);
+  GetQuery then(AcceptedAsChainedQuery nextQuery) {
+    return new GetQuery(injector, table, remote, modelStorage, cacheDuration, Some(nextQuery), requiredParameters, joins);
+  }
+
+  GetQuery join(Field source, Field destination, AcceptedAsChainedQuery join) {
+    var newJoins = [];
+    newJoins.addAll(joins);
+    newJoins.add(new JoinInfo(source, destination, join));
+    return new GetQuery(injector, table, remote, modelStorage, cacheDuration, nextQuery, requiredParameters, newJoins);
   }
 
   @override
-  Future<dynamic> execute([Map<String, Object> parameters]) {
+  Future<dynamic> execute([Map<String, Object> parameters, bool asMap=false]) {
     parameters = mapUtilities.notNull(parameters);
     var temporaryModelStorage = injector.get(IModelStorage, Session) as IModelStorage;
     var temporaryTableStorage = temporaryModelStorage[this.table._tableName + JSON.encode(parameters) + new Random().nextInt(10000).toString()];
@@ -88,9 +130,18 @@ class GetQuery implements Query, PreparedQuery, AcceptedAsNextQuery {
           }
         }
       });
-    }).then((result){
+    }).then((result) {
       temporaryTableStorage.clean();
-      return result.map((_) => table.fromJson(_)).toList();
+
+      return Future.wait((result as List).map((_) {
+        return processJoins(_);
+      })).then((_) {
+        if (asMap) {
+          return result;
+        } else {
+          return result.map((_) => table.fromJson(_)).toList();
+        }
+      });
     });
   }
 
@@ -118,7 +169,7 @@ class GetQuery implements Query, PreparedQuery, AcceptedAsNextQuery {
     var url = remote;
     for (var requiredParameter in requiredParameters) {
       if (!parameters.containsKey(requiredParameter.name)) {
-        throw 'A required parameter for the query was not found (local query from table ${table._tableName}})';
+        throw 'A required parameter (${requiredParameter.name}) for the query was not found (get query from table ${table._tableName}})';
       } else {
         url = url.replaceAll('{${requiredParameter.name}}', parameters[requiredParameter.name].toString());
       }
@@ -228,7 +279,7 @@ class PostQuery implements Query {
   }
 
   @override
-  Future<dynamic> execute([Map<String, Object> parameters]) {
+  Future<dynamic> execute([Map<String, Object> parameters, bool asMap=false]) {
     var url = remote;
     var params = {};
     for (var requiredParameter in requiredParameters) {
@@ -299,7 +350,7 @@ class PutQuery implements Query {
   }
 
   @override
-  Future<dynamic> execute([Map<String, Object> parameters]) {
+  Future<dynamic> execute([Map<String, Object> parameters, bool asMap=false]) {
     var url = remote;
     var params = {};
     for (var requiredParameter in requiredParameters) {
@@ -341,7 +392,7 @@ class DeleteQuery implements Query {
   DeleteQuery(this.injector, this.table, this.remote, this.requiredParameters);
 
   @override
-  Future<dynamic> execute([Map<String, Object> parameters]) {
+  Future<dynamic> execute([Map<String, Object> parameters, bool asMap=false]) {
     var url = remote;
     for (var requiredParameter in requiredParameters) {
       if (!parameters.containsKey(requiredParameter.name)) {
@@ -361,60 +412,123 @@ class DeleteQuery implements Query {
 }
 
 /// Descriptor for a local query (when into a [FullCachedTable]).
-class LocalQuery implements Query {
+class LocalQuery extends QueryWithJoins<LocalQuery> implements Query, AcceptedAsChainedQuery {
   final Injector injector;
   final FullCachedTable table;
   final ITableStorage tableStorage;
   final List<Constraint> constraints;
+  final List<JoinInfo> joins;
+  final List<Field> requiredParameters;
 
-  LocalQuery(this.injector, this.table, this.tableStorage, this.constraints);
+  LocalQuery(this.injector, this.table, this.tableStorage, this.constraints, this.joins, this.requiredParameters);
 
   /// Indicates that the system must return only rows verifying given [constraint].
   /// See [Constraint] for more explanations.
   LocalQuery verifying(Constraint constraint) {
     var newConstraints = [];
+    newConstraints.addAll(constraints);
     newConstraints.add(constraint);
-    return new LocalQuery(injector, table, tableStorage, newConstraints);
+    List<Field> newRequiredParameters;
+    if (constraint.isRequired) {
+      newRequiredParameters = [];
+      newRequiredParameters.addAll(requiredParameters);
+      newRequiredParameters.add(constraint.key);
+    } else {
+      newRequiredParameters = requiredParameters;
+    }
+    return new LocalQuery(injector, table, tableStorage, newConstraints, joins, newRequiredParameters);
+  }
+
+  LocalQuery join(Field source, Field destination, AcceptedAsChainedQuery join) {
+    var newJoins = [];
+    newJoins.addAll(joins);
+    newJoins.add(new JoinInfo(source, destination, join));
+    return new LocalQuery(injector, table, tableStorage, constraints, newJoins, requiredParameters);
   }
 
   @override
-  Future<dynamic> execute([Map<String, Object> parameters]) {
-    return table.findAll.prepare(tableStorage).then((_){
+  Future<dynamic> execute([Map<String, Object> parameters, bool asMap=false]) {
+    parameters = mapUtilities.notNull(parameters);
+    var temporaryModelStorage = injector.get(IModelStorage, Session) as IModelStorage;
+    var temporaryTableStorage = temporaryModelStorage[this.table._tableName + JSON.encode(parameters) + new Random().nextInt(10000).toString()];
+    return prepare(temporaryTableStorage, parameters).then((_){
+      return temporaryTableStorage.findAll();
+    }).then((result){
+      return Future.wait((result as Iterable).map((_){
+        return processJoins(_);
+      })).then((_){
+        if (asMap) {
+          return result;
+        } else {
+          return result.map((_) => table.fromJson(_)).toList();
+        }
+      });
+    });
+  }
+
+  @override
+  Future<bool> prepare(ITableStorage tableStorage, [Map<String, Object> parameters]) {
+    parameters = mapUtilities.notNull(parameters);
+    return table.findAll.prepare(this.tableStorage).then((_){
       for (var constraint in constraints) {
-        if (constraint.isRequired && !parameters.containsKey(constraint.key)) {
+        if (constraint.isRequired && !parameters.containsKey(constraint.key.name)) {
           throw 'A required parameter for the query was not found (local query from table ${table._tableName}})';
         }
       }
-      return tableStorage.findManyWhen((data){
+      return this.tableStorage.findManyWhen((data){
         for (var constraint in constraints) {
-          if (parameters.containsKey(constraint.key)) {
-            if (!constraint.validate(data, parameters[constraint.key])) {
+          if (parameters.containsKey(constraint.key.name)) {
+            if (!constraint.validate(data, parameters[constraint.key.name])) {
               return false;
             }
           }
         }
         return true;
+      }).then((result){
+        var map = {};
+        for (var row in result) {
+          map[row[table._key.name]] = row;
+        }
+        return tableStorage.putMany(map);
       });
-    }).then((result) => result.map((_) => table.fromJson(_)).toList());
+    });
   }
 }
 
 /// Descriptor for the special query [FullCachedTable.findAll].
-class FindAllQuery implements Query, PreparedQuery {
+class FindAllQuery extends QueryWithJoins<FindAllQuery> implements Query, PreparedQuery {
   final Injector injector;
   final Table table;
   final GetQuery getQuery;
   final ITableStorage tableStorage;
   final Option<Duration> cacheDuration;
+  final List<JoinInfo> joins;
   Future _loading; // Avoids calling the same url multiple times on the same moment.
 
-  FindAllQuery(this.injector, this.table, this.getQuery, this.tableStorage, this.cacheDuration);
+  FindAllQuery(this.injector, this.table, this.getQuery, this.tableStorage, this.cacheDuration, this.joins);
+
+  FindAllQuery join(Field source, Field destination, AcceptedAsChainedQuery join) {
+    var newJoins = [];
+    newJoins.addAll(joins);
+    newJoins.add(new JoinInfo(source, destination, join));
+    return new FindAllQuery(injector, table, getQuery, tableStorage, cacheDuration, newJoins);
+  }
 
   @override
-  Future<dynamic> execute([Map<String, Object> parameters, ITableStorage ts]) {
+  Future<dynamic> execute([Map<String, Object> parameters, bool asMap=false]) {
     return prepare(tableStorage).then((_){
       return tableStorage.findAll();
-    }).then((result) => result.map((_) => table.fromJson(_)).toList());
+    }).then((result){
+      return Future.wait((result as List).map((_){
+        return processJoins(_);
+      })).then((_){
+        if (asMap) {
+          return result;
+        } else {
+          return result.map((_) => table.fromJson(_)).toList();
+        }
+      });
+    });
   }
 
   @override
@@ -456,36 +570,61 @@ class FindAllQuery implements Query, PreparedQuery {
 }
 
 /// Descriptor for the special query [PartialCachedTable.find].
-class FindQuery implements Query, PreparedQuery, AcceptedAsNextQuery {
+class FindQuery extends QueryWithJoins<FindQuery> implements Query, PreparedQuery, AcceptedAsChainedQuery {
   final Injector injector;
   final Table table;
   final GetQuery getQuery;
   final ITableStorage tableStorage;
   final Option<Duration> cacheDuration;
+  final List<JoinInfo> joins;
   List<Field> requiredParameters;
 
   Map<Object, Future> _loading = {}; // Avoids calling the same url multiple times on the same moment.
 
-  FindQuery(this.injector, this.table, this.getQuery, this.tableStorage, this.cacheDuration) {
-    requiredParameters = [_keyName];
+  FindQuery(this.injector, this.table, this.getQuery, this.tableStorage, this.cacheDuration, this.joins) {
+    if (getQuery.requiredParameters.length != 1) {
+      throw 'The query used by a partial table cache must contains one parameter.';
+    } else {
+      requiredParameters = [table._key];
+    }
+  }
+
+  FindQuery join(Field source, Field destination, AcceptedAsChainedQuery join) {
+    var newJoins = [];
+    newJoins.addAll(joins);
+    newJoins.add(new JoinInfo(source, destination, join));
+    return new FindQuery(injector, table, getQuery, tableStorage, cacheDuration, newJoins);
   }
 
   @override
-  Future<dynamic> execute([Map<String, Object> parameters]) {
-    parameters = parameters != null ? parameters : {};
+  Future<dynamic> execute([Map<String, Object> parameters, bool asMap=false]) {
+    parameters = mapUtilities.notNull(parameters);
     return prepare(tableStorage, parameters).then((_){
       return tableStorage.find(parameters[_keyName]);
-    }).then((result) => result.map((_) => table.fromJson(_)));
+    }).then((Option result){
+      if (result.isDefined) {
+        return processJoins(result.value).then((_){
+          if (asMap) {
+            return result;
+          } else {
+            return Some(table.fromJson(_));
+          }
+        });
+      } else {
+        return new Future.value(None);
+      }
+    });
   }
 
   @override
   Future<bool> prepare(ITableStorage tableStorage, [Map<String, Object> parameters]) {
+    parameters = mapUtilities.notNull(parameters);
     Object key = parameters[_keyName];
     if (_loading[key] == null) {
       _loading[key] = _isExpired(key).then((isExpired) {
         if (isExpired) {
           return tableStorage.clean().then((_){
-            return getQuery.prepare(tableStorage).then((_) => true);
+            return getQuery.prepare(tableStorage, parameters).then((_) => true);
           });
         } else {
           return new Future.value(false);
@@ -501,7 +640,7 @@ class FindQuery implements Query, PreparedQuery, AcceptedAsNextQuery {
   /// Checks if the cache (if any) for this query table and givne key is expired.
   Future<bool> _isExpired(Object key) {
     IModelStorage modelStorage = tableStorage.modelStorage;
-    return modelStorage['__cacheForTable'].find(tableStorage.name + '.' + key).then((Option<Map> cacheInfo) {
+    return modelStorage['__cacheForTable'].find(tableStorage.name + '.' + key.toString()).then((Option<Map> cacheInfo) {
       if (cacheInfo.isDefined) {
         if (cacheDuration.isDefined) {
           var date = new DateTime.fromMillisecondsSinceEpoch(cacheInfo.value['start']);
@@ -518,10 +657,10 @@ class FindQuery implements Query, PreparedQuery, AcceptedAsNextQuery {
 
   /// Returns the key name of the query to call it with key parameter.
   String get _keyName {
-    if (getQuery.requiredParameters.length != 1) {
+    if (requiredParameters.length != 1) {
       throw 'The query used by a partial table cache must contains one parameter.';
     } else {
-      return getQuery.requiredParameters[0].name;
+      return requiredParameters[0].name;
     }
   }
 }

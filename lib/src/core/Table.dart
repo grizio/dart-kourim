@@ -40,7 +40,7 @@ abstract class Table<A> {
   }
 
   /// Initializes a [GetQuery] with given [remote].
-  GetQuery get(String remote) => new GetQuery(_injector, this, remote, None, None, None, _extractFieldsFromURI(remote));
+  GetQuery get(String remote) => new GetQuery(_injector, this, remote, None, None, None, _extractFieldsFromURI(remote), []);
 
   /// Initializes a [PostQuery] with given [remote].
   PostQuery post(String remote) => new PostQuery(_injector, this, remote, _extractFieldsFromURI(remote), []);
@@ -84,11 +84,11 @@ abstract class FullCachedTable<A> extends Table<A> {
   FindAllQuery get findAll => _findAll.value;
 
   /// Returns a sample (LocalQuery].
-  LocalQuery get local => new LocalQuery(_injector, this, _tableStorage, []);
+  LocalQuery get local => new LocalQuery(_injector, this, _tableStorage, [], [], []);
 
   FullCachedTable(Injector injector, IModelStorage modelStorage, String tableName, [Duration duration]): super(injector, tableName) {
     _tableStorage = modelStorage[_tableName];
-    _findAll = lazy(() => new FindAllQuery(_injector, this, loadAll, _tableStorage, Some(duration)));
+    _findAll = lazy(() => new FindAllQuery(_injector, this, loadAll, _tableStorage, Some(duration), []));
   }
 }
 
@@ -104,6 +104,6 @@ abstract class PartialCachedTable<A> extends Table<A> {
   FindQuery get find => _find.value;
 
   PartialCachedTable(Injector injector, IModelStorage modelStorage, String tableName, [Duration duration]): super(injector, tableName) {
-    _find = lazy(() => new FindQuery(_injector, this, loadOne, modelStorage[tableName], Some(duration)));
+    _find = lazy(() => new FindQuery(_injector, this, loadOne, modelStorage[tableName], Some(duration), []));
   }
 }

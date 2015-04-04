@@ -6,29 +6,32 @@ import 'src/storage/lib/kourim.storage.lib.dart';
 import 'src/core/kourim.core.lib.dart';
 
 export 'src/storage/interface/kourim.storage.interface.dart'
-show IModelStorage, IDatabase;
+show IModelStorage, IDatabase, DatabaseApplicationName, DatabaseChangeManager;
 
 export 'src/core/kourim.core.lib.dart'
 show Table, FullCachedTable, PartialCachedTable, Field,
      Query, GetQuery, PostQuery, PutQuery, DeleteQuery, LocalQuery,
      ApplicationRemoteHost;
 
-class _KourimModule extends Module {
+class KourimModule extends Module {
   KourimModule() {
+    // prepare
+    bind(ApplicationDatabase);
+    bind(SessionStorage);
+    bind(LocalStorage);
+    bind(InternalDatabaseChangeManager);
+
     // public
-    bind(IModelStorage, toInstanceOf: ApplicationDatabase, withAnnotation: const IndexedDb());
-    bind(IModelStorage, toInstanceOf: LocalStorage, withAnnotation: const Local());
-    bind(IModelStorage, toInstanceOf: SessionStorage, withAnnotation: const Session());
+    bind(IModelStorage, toInstanceOf: ApplicationDatabase, withAnnotation: indexedDb);
+    bind(IModelStorage, toInstanceOf: LocalStorage, withAnnotation: localStorage);
+    bind(IModelStorage, toInstanceOf: SessionStorage, withAnnotation: sessionStorage);
 
     // private
-    bind(InternalDatabase, toInstanceOf: InternalDatabase);
-    bind(InternalLocalStorage, toInstanceOf: InternalLocalStorage);
-    bind(InternalSessionStorage, toInstanceOf: InternalSessionStorage);
     bind(IRequestCreation, toValue: requestCreation);
+    bind(DatabaseChangeManager, toInstanceOf: InternalDatabaseChangeManager, withAnnotation: internal);
   }
 }
 
-var kourimModule = new _KourimModule();
 const Local localStorage = const Local();
 const Session sessionStorage = const Session();
 const IndexedDb indexedDb = const IndexedDb();

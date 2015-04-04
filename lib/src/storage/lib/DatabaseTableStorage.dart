@@ -6,8 +6,8 @@ class DatabaseTableStorage implements ITableStorage {
   final Future<idb.Database> db;
   final DatabaseModelStorage modelStorage;
 
-  const readonly = 'readonly';
-  const readwrite = 'readwrite';
+  static const readonly = 'readonly';
+  static const readwrite = 'readwrite';
 
   DatabaseTableStorage(this._name, this.db, this.modelStorage);
 

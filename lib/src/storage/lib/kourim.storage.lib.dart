@@ -19,12 +19,7 @@ part 'MappedTableStorage.dart';
 
 @Injectable()
 class ApplicationDatabase extends DatabaseModelStorage {
-  ApplicationDatabase(DatabaseApplicationName dan, DatabaseChangeManager dcm): super(dan, dcm);
-}
-
-@Injectable()
-class InternalDatabase extends DatabaseModelStorage {
-  InternalDatabase(@Internal() DatabaseApplicationName dan, @Internal() DatabaseChangeManager dcm): super(dan, dcm);
+  ApplicationDatabase(DatabaseApplicationName dan, DatabaseChangeManager dcm, @Internal() DatabaseChangeManager idcm): super(dan, dcm, idcm);
 }
 
 @Injectable()
@@ -38,11 +33,13 @@ class LocalStorage extends MappedModelStorage {
 }
 
 @Injectable()
-class InternalSessionStorage extends MappedModelStorage {
-  InternalSessionStorage(@Internal() DatabaseApplicationName dan): super(window.sessionStorage, dan);
-}
-
-@Injectable()
-class InternalLocalStorage extends MappedModelStorage {
-  InternalLocalStorage(@Internal() DatabaseApplicationName dan): super(window.localStorage, dan);
+class InternalDatabaseChangeManager extends DatabaseChangeManager {
+  InternalDatabaseChangeManager() {
+    onChange(1, (idb.VersionChangeEvent event){
+      idb.Database db = (event.target as idb.Request).result;
+      db.createObjectStore('__cacheForQueries');
+      db.createObjectStore('__queries');
+      db.createObjectStore('__cacheForTable');
+    });
+  }
 }

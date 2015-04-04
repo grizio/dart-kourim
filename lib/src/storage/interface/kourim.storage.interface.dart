@@ -3,6 +3,7 @@ library kourim.storage.interface;
 import 'dart:async';
 import 'dart:indexed_db' as idb;
 import 'package:di/di.dart';
+import 'package:klang/klang.dart';
 
 part 'IDatabase.dart';
 part 'IModelStorage.dart';

@@ -3,6 +3,7 @@ library kourim.core;
 import 'dart:async';
 import 'package:klang/klang.dart';
 import '../storage/interface/kourim.storage.interface.dart';
+import '../storage/lib/kourim.storage.lib.dart';
 import 'package:di/di.dart';
 import 'dart:convert';
 import 'package:klang/utilities/map.dart' as mapUtilities;

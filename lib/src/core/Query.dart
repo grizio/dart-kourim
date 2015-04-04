@@ -16,7 +16,7 @@ abstract class PreparedQuery {
   ///
   /// It can also be used by the developer is he want to copy the result into another table.
   /// Then, when he will change data, it could use the copied table and not change original data.
-  Future prepare(ITableStorage tableStorage, [Map<String, Object> parameters]);
+  Future<bool> prepare(ITableStorage tableStorage, [Map<String, Object> parameters]);
 }
 
 /// Descriptor for a remote `GET` query.
@@ -47,37 +47,64 @@ class GetQuery implements Query, PreparedQuery {
   @override
   Future<dynamic> execute([Map<String, Object> parameters]) {
     parameters = mapUtilities.notNull(parameters);
-    if (modelStorage.isDefined) {
-      var tableStorage = modelStorage.value[this.table._tableName + JSON.encode(parameters)];
-      return prepare(tableStorage).then((_){
-        return tableStorage.findAll();
+    var temporaryModelStorage = injector.get(IModelStorage, Session) as IModelStorage;
+    var temporaryTableStorage = temporaryModelStorage[this.table._tableName + JSON.encode(parameters) + new Random().nextInt(10000).toString()];
+    return prepare(temporaryTableStorage).then((pulled){
+      return temporaryTableStorage.findAll().then((result) {
+        if (pulled) {
+          if (modelStorage.isDefined) {
+            var storage = modelStorage.value;
+            if (storage is IDatabase) {
+              // It is the indexedDB which cannot have tables creating dynamically.
+              return storage['__queries']
+                .putOne(this.table._tableName + JSON.encode(parameters), {'result': result})
+                .then((_) => result);
+            } else {
+              // It is localStorage or sessionStorage, we cannot get all in only one table.
+              var map = {};
+              for (var row in result) {
+                map[row[table._key.name]] = row;
+              }
+              return storage['__' + this.table._tableName + JSON.encode(parameters)]
+                .putMany(map)
+                .then((_) => result);
+            }
+          }
+        } else {
+          // Always a model storage.
+          var storage = modelStorage.value;
+          if (storage is IDatabase) {
+            return storage['__queries']
+              .find(this.table._tableName + JSON.encode(parameters))
+              .then((_) => _.value['result']);
+          } else {
+            return storage['__' + this.table._tableName + JSON.encode(parameters)]
+              .findAll();
+          }
+        }
       });
-    } else {
-      var modelStorage = injector.get(IModelStorage, Session) as IModelStorage;
-      var tableStorage = modelStorage[this.table._tableName + JSON.encode(parameters) + new Random().nextInt(10000).toString()];
-      return prepare(tableStorage).then((_){
-        var result = tableStorage.findAll();
-        tableStorage.clean();
-        return result;
-      });
-    }
+    }).then((result){
+      temporaryTableStorage.clean();
+      return result;
+    });
   }
 
   @override
-  Future prepare(ITableStorage tableStorage, [Map<String, Object> parameters]) {
+  Future<bool> prepare(ITableStorage tableStorage, [Map<String, Object> parameters]) {
     parameters = mapUtilities.notNull(parameters);
-    var key = table._tableName + JSON.encode(parameters);
+    var key = table._tableName + '.' + tableStorage.name + JSON.encode(parameters);
     if (_loading[key] == null) {
       _loading[key] = _isExpired(parameters).then((isExpired){
         if (isExpired) {
-          return _pull(tableStorage, parameters);
+          return _pull(tableStorage, parameters).then((_) => true);
         } else {
-          return new Future.value();
+          return new Future.value(false);
         }
       });
     }
     return _loading[key].then((_) {
       _loading[key] = null;
+      return _;
     });
   }
 
@@ -88,14 +115,16 @@ class GetQuery implements Query, PreparedQuery {
       if (!parameters.containsKey(requiredParameter.name)) {
         throw 'A required parameter for the query was not found (local query from table ${table._tableName}})';
       } else {
-        url = url.replaceAll('{${requiredParameter.name}}', parameters[requiredParameter.name]);
+        url = url.replaceAll('{${requiredParameter.name}}', parameters[requiredParameter.name].toString());
       }
     }
 
     var requestCreation = injector.get(IRequestCreation);
     var request = requestCreation() as IRequest;
     var host = (injector.get(ApplicationRemoteHost) as ApplicationRemoteHost).host;
-    request.uri = host + (host.endsWith('/') ? '' : '/') + url;
+    host += host.endsWith('/') ? '' : '/';
+    host += url.startsWith('/') ? url.substring(1) : url;
+    request.uri = host;
     request.method = 'GET';
     request.parseResult = true;
     return request.send().then((values) {
@@ -114,7 +143,7 @@ class GetQuery implements Query, PreparedQuery {
     } else if (values is Map) {
       return nextQuery.value.prepare(tableStorage, values);
     } else {
-      return nextQuery.value.prepare(tableStorage, {nextQuery.value.requiredParameters.first: values});
+      return nextQuery.value.prepare(tableStorage, {nextQuery.value.requiredParameters.first.name: values});
     }
   }
 
@@ -136,7 +165,7 @@ class GetQuery implements Query, PreparedQuery {
   /// Checks if the cache (if any) for this query and given [parameters] is expired.
   Future<bool> _isExpired(Map<String, Object> parameters) {
     if (modelStorage.isDefined) {
-      return modelStorage.value['_cacheForQueries'].find(table._tableName + '.' + remote + JSON.encode(parameters)).then((Option<Map> cacheInfo) {
+      return modelStorage.value['__cacheForQueries'].find(table._tableName + '.' + remote + JSON.encode(parameters)).then((Option<Map> cacheInfo) {
         if (cacheInfo.isDefined) {
           if (cacheDuration.isDefined) {
             var date = new DateTime.fromMillisecondsSinceEpoch(cacheInfo.value['start']);
@@ -339,7 +368,7 @@ class LocalQuery implements Query {
   /// See [Constraint] for more explanations.
   LocalQuery verifying(Constraint constraint) {
     var newConstraints = [];
-    newConstraints.addAll(constraints);
+    newConstraints.add(constraint);
     return new LocalQuery(injector, table, tableStorage, newConstraints);
   }
 
@@ -351,10 +380,10 @@ class LocalQuery implements Query {
           throw 'A required parameter for the query was not found (local query from table ${table._tableName}})';
         }
       }
-      tableStorage.findManyWhen((data){
+      return tableStorage.findManyWhen((data){
         for (var constraint in constraints) {
           if (parameters.containsKey(constraint.key)) {
-            if (!constraint.validate(data, parameters[key])) {
+            if (!constraint.validate(data, parameters[constraint.key])) {
               return false;
             }
           }
@@ -384,25 +413,28 @@ class FindAllQuery implements Query, PreparedQuery {
   }
 
   @override
-  Future prepare(ITableStorage tableStorage, [Map<String, Object> parameters]) {
+  Future<bool> prepare(ITableStorage tableStorage, [Map<String, Object> parameters]) {
     if (_loading == null) {
       _loading = _isExpired().then((isExpired) {
         if (isExpired) {
-          return getQuery.prepare(tableStorage);
+          return tableStorage.clean().then((_){
+            return getQuery.prepare(tableStorage).then((_) => true);
+          });
         } else {
-          return new Future.value();
+          return new Future.value(false);
         }
       });
     }
     return _loading.then((_) {
       _loading = null;
+      return _;
     });
   }
 
   /// Checks if the cache (if any) for this query table is expired.
   Future<bool> _isExpired() {
     IModelStorage modelStorage = tableStorage.modelStorage;
-    return modelStorage['_cacheForTable'].find(tableStorage.name).then((Option<Map> cacheInfo) {
+    return modelStorage['__cacheForTable'].find(tableStorage.name).then((Option<Map> cacheInfo) {
       if (cacheInfo.isDefined) {
         if (cacheDuration.isDefined) {
           var date = new DateTime.fromMillisecondsSinceEpoch(cacheInfo.value['start']);
@@ -438,26 +470,29 @@ class FindQuery implements Query, PreparedQuery {
   }
 
   @override
-  Future prepare(ITableStorage tableStorage, [Map<String, Object> parameters]) {
+  Future<bool> prepare(ITableStorage tableStorage, [Map<String, Object> parameters]) {
     Object key = parameters[_keyName];
     if (_loading[key] == null) {
       _loading[key] = _isExpired(key).then((isExpired) {
         if (isExpired) {
-          return getQuery.prepare(tableStorage);
+          return tableStorage.clean().then((_){
+            return getQuery.prepare(tableStorage).then((_) => true);
+          });
         } else {
-          return new Future.value();
+          return new Future.value(false);
         }
       });
     }
     return _loading[key].then((_) {
       _loading[key] = null;
+      return _;
     });
   }
 
   /// Checks if the cache (if any) for this query table and givne key is expired.
   Future<bool> _isExpired(Object key) {
     IModelStorage modelStorage = tableStorage.modelStorage;
-    return modelStorage['_cacheForTable'].find(tableStorage.name + key).then((Option<Map> cacheInfo) {
+    return modelStorage['__cacheForTable'].find(tableStorage.name + '.' + key).then((Option<Map> cacheInfo) {
       if (cacheInfo.isDefined) {
         if (cacheDuration.isDefined) {
           var date = new DateTime.fromMillisecondsSinceEpoch(cacheInfo.value['start']);

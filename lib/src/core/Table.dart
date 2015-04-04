@@ -35,6 +35,7 @@ abstract class Table<A> {
     }
     var field = new Field(this, name, true, true);
     _key = field;
+    _fields[name] = field;
     return field;
   }
 
@@ -63,9 +64,9 @@ abstract class Table<A> {
       if (_fields.containsKey(name)) {
         return _fields[name];
       } else {
-        throw 'All parameters given in remote url must exist in associated table.';
+        throw 'All parameters given in remote url must exist in associated table.' + name + JSON.encode(_fields.keys);
       }
-    });
+    }).toList();
   }
 }
 

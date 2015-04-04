@@ -32,7 +32,7 @@ class ValueConstraint extends DefaultConstraint {
 
   @override
   bool validate(Map<String, Object> data, Object value) {
-    return data[key] == value;
+    return data[this.key] == value;
   }
 }
 
@@ -53,7 +53,7 @@ class LikeConstraint extends DefaultConstraint {
 
   @override
   bool validate(Map<String, Object> data, Object value) {
-    return data[key] != null && data[key].toString().contains(value.toString());
+    return data[this.key] != null && data[this.key].toString().contains(value.toString());
   }
 }
 
@@ -75,10 +75,10 @@ class LowerConstraint extends DefaultConstraint {
 
   @override
   bool validate(Map<String, Object> data, Object value) {
-    if (data[key] == null) {
+    if (data[this.key] == null) {
       return false;
-    } else if (data[key] is Comparable) {
-      return (data[key] as Comparable).compareTo(value) < 0;
+    } else if (data[this.key] is Comparable) {
+      return (data[this.key] as Comparable).compareTo(value) < 0;
     } else {
       new Logger('LowerConstraint').warning('The given value is not a Comparable object, LowerConstraint.validate returns false by default');
       return false;
@@ -93,10 +93,10 @@ class UpperConstraint extends DefaultConstraint {
 
   @override
   bool validate(Map<String, Object> data, Object value) {
-    if (data[key] == null) {
+    if (data[this.key] == null) {
       return false;
-    } else if (data[key] is Comparable) {
-      return (data[key] as Comparable).compareTo(value) > 0;
+    } else if (data[this.key] is Comparable) {
+      return (data[this.key] as Comparable).compareTo(value) > 0;
     } else {
       new Logger('UpperConstraint').warning('The given value is not a Comparable object, UpperConstraint.validate returns false by default');
       return false;
@@ -112,10 +112,10 @@ class EqualConstraint extends DefaultConstraint {
 
   @override
   bool validate(Map<String, Object> data, Object value) {
-    if (data[key] == null) {
+    if (data[this.key] == null) {
       return false;
-    } else if (data[key] is Comparable) {
-      return (data[key] as Comparable).compareTo(value) == 0;
+    } else if (data[this.key] is Comparable) {
+      return (data[this.key] as Comparable).compareTo(value) == 0;
     } else {
       new Logger('EqualConstraint').warning('The given value is not a Comparable object, EqualConstraint.validate returns false by default');
       return false;
@@ -130,10 +130,10 @@ class DifferentConstraint extends DefaultConstraint {
 
   @override
   bool validate(Map<String, Object> data, Object value) {
-    if (data[key] == null) {
+    if (data[this.key] == null) {
       return false;
-    } else if (data[key] is Comparable) {
-      return (data[key] as Comparable).compareTo(value) != 0;
+    } else if (data[this.key] is Comparable) {
+      return (data[this.key] as Comparable).compareTo(value) != 0;
     } else {
       new Logger('DifferentConstraint').warning('The given value is not a Comparable object, DifferentConstraint.validate returns false by default');
       return false;
@@ -148,10 +148,10 @@ class LowerOrEqualConstraint extends DefaultConstraint {
 
   @override
   bool validate(Map<String, Object> data, Object value) {
-    if (data[key] == null) {
+    if (data[this.key] == null) {
       return false;
-    } else if (data[key] is Comparable) {
-      return (data[key] as Comparable).compareTo(value) <= 0;
+    } else if (data[this.key] is Comparable) {
+      return (data[this.key] as Comparable).compareTo(value) <= 0;
     } else {
       new Logger('LowerOrEqualConstraint').warning('The given value is not a Comparable object, LowerOrEqualConstraint.validate returns false by default');
       return false;
@@ -166,10 +166,10 @@ class UpperOrEqualConstraint extends DefaultConstraint {
 
   @override
   bool validate(Map<String, Object> data, Object value) {
-    if (data[key] == null) {
+    if (data[this.key] == null) {
       return false;
-    } else if (data[key] is Comparable) {
-      return (data[key] as Comparable).compareTo(value) >= 0;
+    } else if (data[this.key] is Comparable) {
+      return (data[this.key] as Comparable).compareTo(value) >= 0;
     } else {
       new Logger('UpperOrEqualConstraint').warning('The given value is not a Comparable object, UpperOrEqualConstraint.validate returns false by default');
       return false;

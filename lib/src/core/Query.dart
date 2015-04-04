@@ -19,14 +19,19 @@ abstract class PreparedQuery {
   Future<bool> prepare(ITableStorage tableStorage, [Map<String, Object> parameters]);
 }
 
+abstract class AcceptedAsNextQuery extends PreparedQuery {
+  /// List of parameters which are required to perform the execution.
+  List<Field> get requiredParameters;
+}
+
 /// Descriptor for a remote `GET` query.
-class GetQuery implements Query, PreparedQuery {
+class GetQuery implements Query, PreparedQuery, AcceptedAsNextQuery {
   final Injector injector;
   final Table table;
   final String remote;
   final Option<IModelStorage> modelStorage;
   final Option<Duration> cacheDuration;
-  final Option<GetQuery> nextQuery;
+  final Option<AcceptedAsNextQuery> nextQuery;
   final List<Field> requiredParameters;
   Map<String, Future> _loading = {}; // Avoids calling the same url multiple times on the same moment.
 
@@ -40,8 +45,8 @@ class GetQuery implements Query, PreparedQuery {
   }
 
   /// Indicates that the given query must call another query after getting its result.
-  GetQuery then(GetQuery getQuery) {
-    return new GetQuery(injector, table, remote, modelStorage, cacheDuration, Some(getQuery), requiredParameters);
+  GetQuery then(AcceptedAsNextQuery nextQuery) {
+    return new GetQuery(injector, table, remote, modelStorage, cacheDuration, Some(nextQuery), requiredParameters);
   }
 
   @override
@@ -451,22 +456,26 @@ class FindAllQuery implements Query, PreparedQuery {
 }
 
 /// Descriptor for the special query [PartialCachedTable.find].
-class FindQuery implements Query, PreparedQuery {
+class FindQuery implements Query, PreparedQuery, AcceptedAsNextQuery {
   final Injector injector;
   final Table table;
   final GetQuery getQuery;
   final ITableStorage tableStorage;
   final Option<Duration> cacheDuration;
+  List<Field> requiredParameters;
+
   Map<Object, Future> _loading = {}; // Avoids calling the same url multiple times on the same moment.
 
-  FindQuery(this.injector, this.table, this.getQuery, this.tableStorage, this.cacheDuration);
+  FindQuery(this.injector, this.table, this.getQuery, this.tableStorage, this.cacheDuration) {
+    requiredParameters = [_keyName];
+  }
 
   @override
   Future<dynamic> execute([Map<String, Object> parameters]) {
     parameters = parameters != null ? parameters : {};
     return prepare(tableStorage, parameters).then((_){
       return tableStorage.find(parameters[_keyName]);
-    }).then((result) => result.map((_) => table.fromJson(_)).toList());
+    }).then((result) => result.map((_) => table.fromJson(_)));
   }
 
   @override

@@ -23,6 +23,8 @@ abstract class IRequest {
 
 /// This class is the default implementation of [IRequest] and is used in production mode.
 class Request extends IRequest {
+  var logger = new Logger('kourim.core.Request');
+
   Option<String> _uri = None;
   Option<String> _method = None;
   Option<Map<String, Object>> _parameters = None;
@@ -53,6 +55,7 @@ class Request extends IRequest {
     if (_uri == None || _method == None) {
       throw 'You must provide a valid URI and a valid method before sending a HTTP Request.';
     }
+    logger.fine('calling ${_method.value} "${_uri.value}"');
     var completer = new Completer<dynamic>();
 
     var xhr = new HttpRequest();

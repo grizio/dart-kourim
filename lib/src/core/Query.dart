@@ -49,9 +49,19 @@ abstract class QueryWithJoins<A extends Query> {
         for (var sourceOne in source) {
           subFutures.add(joinInfo.join.execute({joinInfo.join.requiredParameters.first.name: sourceOne}, true));
         }
-        futures.add(Future.wait(subFutures).then((_) => data[joinInfo.destination.name] = _));
+        futures.add(Future.wait(subFutures).then((list){
+          var result = [];
+          for (var row in list) {
+              result.addAll(row);
+          }
+          data[joinInfo.destination.name] = result;
+        }));
       } else {
-        futures.add(joinInfo.join.execute({joinInfo.join.requiredParameters.first.name: source}, true).then((_) => data[joinInfo.destination.name] = _));
+        futures.add(joinInfo.join.execute({joinInfo.join.requiredParameters.first.name: source}, true).then((_){
+          if (_.isNotEmpty) {
+            data[joinInfo.destination.name] = _.first;
+          }
+        }));
       }
     });
     return Future.wait(futures);
@@ -152,7 +162,9 @@ class GetQuery extends QueryWithJoins<GetQuery> implements Query, PreparedQuery,
     if (_loading[key] == null) {
       _loading[key] = _isExpired(parameters).then((isExpired){
         if (isExpired) {
-          return _pull(tableStorage, parameters).then((_) => true);
+          return _pull(tableStorage, parameters).then((_){
+            return _saveCache(parameters).then((_) => true);
+          });
         } else {
           return new Future.value(false);
         }
@@ -226,7 +238,7 @@ class GetQuery extends QueryWithJoins<GetQuery> implements Query, PreparedQuery,
           if (cacheDuration.isDefined) {
             var date = new DateTime.fromMillisecondsSinceEpoch(cacheInfo.value['start']);
             date = date.add(cacheDuration.value);
-            return date.isAfter(new DateTime.now());
+            return date.isBefore(new DateTime.now());
           } else {
             return false;
           }
@@ -236,6 +248,18 @@ class GetQuery extends QueryWithJoins<GetQuery> implements Query, PreparedQuery,
       });
     } else {
       return new Future.value(true);
+    }
+  }
+
+  /// Saves the data about cache
+  Future<bool> _saveCache(Map<String, Object> parameters) {
+    if (modelStorage.isDefined) {
+      return modelStorage.value['__cacheForQueries'].putOne(
+          table._tableName + '.' + remote + JSON.encode(parameters),
+          {'start': new DateTime.now().millisecondsSinceEpoch}
+      );
+    } else {
+      return new Future.value();
     }
   }
 }
@@ -452,13 +476,15 @@ class LocalQuery extends QueryWithJoins<LocalQuery> implements Query, AcceptedAs
     var temporaryModelStorage = injector.get(IModelStorage, Session) as IModelStorage;
     var temporaryTableStorage = temporaryModelStorage[this.table._tableName + JSON.encode(parameters) + new Random().nextInt(10000).toString()];
     return prepare(temporaryTableStorage, parameters).then((_){
-      return temporaryTableStorage.findAll();
+      return temporaryTableStorage.findAll().then((result){
+        return temporaryTableStorage.clean().then((_) => result);
+      });
     }).then((result){
       return Future.wait((result as Iterable).map((_){
         return processJoins(_);
       })).then((_){
         if (asMap) {
-          return result;
+          return result.toList();
         } else {
           return result.map((_) => table.fromJson(_)).toList();
         }
@@ -475,16 +501,30 @@ class LocalQuery extends QueryWithJoins<LocalQuery> implements Query, AcceptedAs
           throw 'A required parameter for the query was not found (local query from table ${table._tableName}})';
         }
       }
-      return this.tableStorage.findManyWhen((data){
-        for (var constraint in constraints) {
-          if (parameters.containsKey(constraint.key.name)) {
-            if (!constraint.validate(data, parameters[constraint.key.name])) {
-              return false;
+      Future result;
+      if (constraints.isEmpty) {
+        result = this.tableStorage.findAll();
+      } else if (constraints.length == 1 && constraints.first is ValueConstraint && constraints.first.key == table._key) {
+        result = this.tableStorage.find(parameters[constraints.first.key.name]).then((_) {
+          if (_.isDefined) {
+            return [_.value];
+          } else {
+            return [];
+          }
+        });
+      } else {
+        result = this.tableStorage.findManyWhen((data){
+          for (var constraint in constraints) {
+            if (parameters.containsKey(constraint.key.name)) {
+              if (!constraint.validate(data, parameters[constraint.key.name])) {
+                return false;
+              }
             }
           }
-        }
-        return true;
-      }).then((result){
+          return true;
+        });
+      }
+      return result.then((result){
         var map = {};
         for (var row in result) {
           map[row[table._key.name]] = row;
@@ -537,7 +577,9 @@ class FindAllQuery extends QueryWithJoins<FindAllQuery> implements Query, Prepar
       _loading = _isExpired().then((isExpired) {
         if (isExpired) {
           return tableStorage.clean().then((_){
-            return getQuery.prepare(tableStorage).then((_) => true);
+            return getQuery.prepare(tableStorage).then((_){
+              return _saveCache().then((_) => true);
+            });
           });
         } else {
           return new Future.value(false);
@@ -558,7 +600,7 @@ class FindAllQuery extends QueryWithJoins<FindAllQuery> implements Query, Prepar
         if (cacheDuration.isDefined) {
           var date = new DateTime.fromMillisecondsSinceEpoch(cacheInfo.value['start']);
           date = date.add(cacheDuration.value);
-          return date.isAfter(new DateTime.now());
+          return date.isBefore(new DateTime.now());
         } else {
           return false;
         }
@@ -566,6 +608,14 @@ class FindAllQuery extends QueryWithJoins<FindAllQuery> implements Query, Prepar
         return true;
       }
     });
+  }
+
+  /// Saves the data about cache
+  Future<bool> _saveCache() {
+    return tableStorage.modelStorage['__cacheForTable'].putOne(
+        tableStorage.name,
+        {'start': new DateTime.now().millisecondsSinceEpoch}
+    );
   }
 }
 
@@ -624,7 +674,9 @@ class FindQuery extends QueryWithJoins<FindQuery> implements Query, PreparedQuer
       _loading[key] = _isExpired(key).then((isExpired) {
         if (isExpired) {
           return tableStorage.clean().then((_){
-            return getQuery.prepare(tableStorage, parameters).then((_) => true);
+            return getQuery.prepare(tableStorage, parameters).then((_){
+              return _saveCache(key).then((_) => true);
+            });
           });
         } else {
           return new Future.value(false);
@@ -645,7 +697,7 @@ class FindQuery extends QueryWithJoins<FindQuery> implements Query, PreparedQuer
         if (cacheDuration.isDefined) {
           var date = new DateTime.fromMillisecondsSinceEpoch(cacheInfo.value['start']);
           date = date.add(cacheDuration.value);
-          return date.isAfter(new DateTime.now());
+          return date.isBefore(new DateTime.now());
         } else {
           return false;
         }
@@ -653,6 +705,14 @@ class FindQuery extends QueryWithJoins<FindQuery> implements Query, PreparedQuer
         return true;
       }
     });
+  }
+
+  /// Saves the data about cache
+  Future<bool> _saveCache(Object key) {
+    return tableStorage.modelStorage['__cacheForTable'].putOne(
+        tableStorage.name + '.' + key.toString(),
+        {'start': new DateTime.now().millisecondsSinceEpoch}
+    );
   }
 
   /// Returns the key name of the query to call it with key parameter.

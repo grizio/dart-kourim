@@ -19,7 +19,8 @@ class DatabaseTableStorage implements ITableStorage {
     return db.then((db){
       var transaction = db.transaction(name, readonly);
       var store = transaction.objectStore(name);
-      return store.getObject(key).then((value) => new Option(value));
+      return store.getObject(key).then((value) => new Option(value))
+        .then((result) => transaction.completed.then((_) => result));
     });
   }
 
@@ -28,7 +29,8 @@ class DatabaseTableStorage implements ITableStorage {
     return db.then((db){
       var transaction = db.transaction(name, readonly);
       var store = transaction.objectStore(name);
-      return store.openCursor(autoAdvance: true).asBroadcastStream().map((event) => event.value).toList();
+      return store.openCursor(autoAdvance: true).asBroadcastStream().map((event) => event.value).toList()
+        .then((result) => transaction.completed.then((_) => result));
     });
   }
 
@@ -63,7 +65,8 @@ class DatabaseTableStorage implements ITableStorage {
     return db.then((db){
       var transaction = db.transaction(name, readonly);
       var store = transaction.objectStore(name);
-      return store.openCursor(autoAdvance: true).firstWhere((e) => constraint(e.value)).then((idb.CursorWithValue cwv) => cwv.value);
+      return store.openCursor(autoAdvance: true).firstWhere((e) => constraint(e.value)).then((idb.CursorWithValue cwv) => cwv.value)
+        .then((result) => transaction.completed.then((_) => result));
     });
   }
 
@@ -72,7 +75,8 @@ class DatabaseTableStorage implements ITableStorage {
     return db.then((db){
       var transaction = db.transaction(name, readonly);
       var store = transaction.objectStore(name);
-      return store.openCursor(autoAdvance: true).where((e) => constraint(e.value)).map((idb.CursorWithValue cwv) => cwv.value).toList();
+      return store.openCursor(autoAdvance: true).where((e) => constraint(e.value)).map((idb.CursorWithValue cwv) => cwv.value).toList()
+        .then((result) => transaction.completed.then((_) => result));
     });
   }
 
@@ -108,9 +112,9 @@ class DatabaseTableStorage implements ITableStorage {
       var transaction = db.transaction(name, readwrite);
       var store = transaction.objectStore(name);
       if (store.keyPath == null) {
-        return store.put(value, key);
+        return store.put(value, key).then((_) => transaction.completed);
       } else {
-        return store.put(value);
+        return store.put(value).then((_) => transaction.completed);
       }
     });
   }
@@ -122,9 +126,9 @@ class DatabaseTableStorage implements ITableStorage {
       var store = transaction.objectStore(name);
       return Future.wait(values.keys.map((key){
         if (store.keyPath == null) {
-          return store.put(values[key], key);
+          return store.put(values[key], key).then((_) => transaction.completed);
         } else {
-          return store.put(values[key]);
+          return store.put(values[key]).then((_) => transaction.completed);
         }
       }));
     });
@@ -135,7 +139,7 @@ class DatabaseTableStorage implements ITableStorage {
     return db.then((db){
       var transaction = db.transaction(name, readonly);
       var store = transaction.objectStore(name);
-      return store.openCursor(autoAdvance: true).forEach((e) => process(e.value));
+      return store.openCursor(autoAdvance: true).forEach((e) => process(e.value)).then((_) => transaction.completed);
     });
   }
 
@@ -144,7 +148,8 @@ class DatabaseTableStorage implements ITableStorage {
     return db.then((db){
       var transaction = db.transaction(name, readonly);
       var store = transaction.objectStore(name);
-      return store.openCursor(autoAdvance: true).map((e) => process(e.value)).toList();
+      return store.openCursor(autoAdvance: true).map((e) => process(e.value)).toList()
+        .then((result) => transaction.completed.then((_) => result));
     });
   }
 
@@ -153,7 +158,7 @@ class DatabaseTableStorage implements ITableStorage {
     return db.then((db){
       var transaction = db.transaction(name, readwrite);
       var store = transaction.objectStore(name);
-      return store.delete(key);
+      return store.delete(key).then((_) => transaction.completed);
     });
   }
 
@@ -179,7 +184,7 @@ class DatabaseTableStorage implements ITableStorage {
         if (constraint(e.value)) {
           e.delete();
         }
-      });
+      }).then((_) => transaction.completed);
     });
   }
 
@@ -188,7 +193,7 @@ class DatabaseTableStorage implements ITableStorage {
     return db.then((db){
       var transaction = db.transaction(name, readwrite);
       var store = transaction.objectStore(name);
-      store.clear();
+      store.clear().then((_) => transaction.completed);
     });
   }
 }

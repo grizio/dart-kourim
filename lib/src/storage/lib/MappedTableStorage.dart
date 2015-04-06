@@ -5,6 +5,8 @@ class MappedTableStorage implements ITableStorage {
   final Storage storage;
   final String name;
   final MappedModelStorage modelStorage;
+  Map<Object, Map<String, Object>> data;
+  Timer delayed;
 
   MappedTableStorage(this.storage, this.name, this.modelStorage);
 
@@ -23,7 +25,9 @@ class MappedTableStorage implements ITableStorage {
   @override
   Future<Iterable<Map<String, Object>>> findAll() {
     return new Future((){
-      return load().values;
+      var result = [];
+      result.addAll(load().values);
+      return result;
     });
   }
 
@@ -120,7 +124,6 @@ class MappedTableStorage implements ITableStorage {
     return new Future((){
       var rows = load();
       rows[key] = value;
-      save(rows);
     });
   }
 
@@ -129,7 +132,6 @@ class MappedTableStorage implements ITableStorage {
     return new Future((){
       var rows = load();
       rows.addAll(values);
-      save(rows);
     });
   }
 
@@ -190,24 +192,42 @@ class MappedTableStorage implements ITableStorage {
   @override
   Future clean() {
     return new Future((){
-      save({});
+      var data = load();
+      data.clear();
     });
   }
 
   Map<Object, Map<String, Object>> load() {
-    if (storage.containsKey(modelStorage.databaseApplicationName.name + '_' + name)) {
-      return JSON.decode(storage[modelStorage.databaseApplicationName.name + '_' + name]);
-    } else {
-      return {};
+    if (data == null) {
+      if (storage.containsKey(tableName)) {
+        data = JSON.decode(storage[tableName]);
+      } else {
+        data = {};
+      }
     }
+    if (delayed != null) {
+      delayed.cancel();
+    }
+    delayed = new Timer(new Duration(seconds: 1), (){
+      save(data);
+      data = null;
+      delayed = null;
+    });
+    return data;
   }
 
   void save(Map<Object, Map<String, Object>> data) {
-    // Transform Object keys to String keys.
-    var encodedData = {};
-    data.forEach((key, value){
-      encodedData[key.toString()] = value;
-    });
-    storage[modelStorage.databaseApplicationName.name + '_' + name] = JSON.encode(encodedData);
+    if (mapUtilities.isNotEmpty(data)) {
+      // Transform Object keys to String keys.
+      var encodedData = {};
+      data.forEach((key, value){
+        encodedData[key.toString()] = value;
+      });
+      storage[tableName] = JSON.encode(encodedData);
+    } else {
+      storage.remove(tableName);
+    }
   }
+
+  String get tableName => modelStorage.databaseApplicationName.name + '_' + name;
 }

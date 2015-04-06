@@ -11,7 +11,7 @@ show IModelStorage, IDatabase, DatabaseApplicationName, DatabaseChangeManager;
 export 'src/core/kourim.core.lib.dart'
 show Table, FullCachedTable, PartialCachedTable, Field,
      Query, GetQuery, PostQuery, PutQuery, DeleteQuery, LocalQuery,
-     ApplicationRemoteHost;
+     ApplicationRemoteHost, Constraint;
 
 class KourimModule extends Module {
   KourimModule() {

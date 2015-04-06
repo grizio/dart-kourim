@@ -9,6 +9,7 @@ import 'package:di/di.dart';
 
 import 'package:klang/klang.dart';
 import 'package:klang/utilities/integer.dart' as integerUtilities;
+import 'package:klang/utilities/map.dart' as mapUtilities;
 
 import '../interface/kourim.storage.interface.dart';
 
